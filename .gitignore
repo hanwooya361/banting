@@ -1,0 +1,21 @@
+# 비밀 값
+.env
+*.env
+application-secret.yml
+
+# Java / Gradle
+backend/build/
+backend/.gradle/
+*.class
+*.log
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
