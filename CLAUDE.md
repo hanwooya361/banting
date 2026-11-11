@@ -1,6 +1,6 @@
 # 프로젝트: 반띵
 
-> 2026-11-11 작성. 저장소 폴더: `Desktop\aloneproject`. 개발은 이 폴더에서 Claude Code로 진행.
+> 2026-11-11 작성. 저장소 폴더: `Desktop\aloneproject`. GitHub: https://github.com/hanwooya361/banting. 개발은 이 폴더에서 Claude Code로 진행.
 
 ## 한 줄 정의
 동네 이웃과 온라인 대용량 상품을 반띵하는 공동구매. 참여 = 결제, 인원이 차면 자동 확정, 못 채우면 전원 자동 환불.
@@ -59,7 +59,7 @@
 - 피드백으로 생긴 작업은 GitHub Issue 번호를 PR과 devlog에 남김
 
 ## 진행 상황
-- 완료: T01 (폴더·문서 초안)
+- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push)
 - 다음: T02 백엔드·프론트 프로젝트 생성
 
 ## 실행 명령 (T02 이후 채움)
