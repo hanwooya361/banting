@@ -33,14 +33,18 @@
 - 상태 변경은 정해진 전이만 허용 (도메인 엔티티 메서드에서 검증)
 - 외부 결제 호출과 DB 트랜잭션을 섞지 않는다. 실패 시 보상 처리(결제 취소)
 - 개인정보는 꼭 필요한 것만. 위치는 반경 계산용 좌표만 저장하고 화면에는 동네 이름만 보여줌
-- 비용: 월 고정비 최소 (EC2 프리티어 또는 소형 인스턴스 1대)
+- 비용: 월 고정비 최소 (EC2 1대 + RDS 1대 + S3·CloudFront, 계정의 프리티어·크레딧 범위 안에서)
 
 ## 기술 스택
 - 백엔드: Java 21, Spring Boot 3, Spring Data JPA, Spring Security + JWT, Gradle. 기능별 패키지(user, groupbuy, participation, payment, pickup, settlement, inquiry, common, config)
-- DB: MySQL 8 + Flyway. 로컬은 Docker Compose MySQL, 테스트는 Testcontainers
+- DB: MySQL 8 + Flyway. 배포는 AWS RDS, 로컬은 Docker Compose MySQL, 테스트는 Testcontainers
 - 프론트: React (Vite) + TypeScript + Tailwind
 - 결제: 토스페이먼츠 결제위젯 테스트 키 / 파일: AWS S3 (presigned URL)
-- 배포: GitHub Actions(빌드·테스트) → Docker 이미지 → EC2(Docker Compose) + Nginx + HTTPS
+- 배포 (2026-11-12 확정)
+  - 프론트: GitHub Actions 빌드 → S3 업로드 → CloudFront(HTTPS, 도메인) 캐시 무효화
+  - 백엔드: GitHub Actions(빌드·테스트) → Docker 이미지 → EC2 + Nginx(HTTPS, api 서브도메인)
+  - DB: AWS RDS MySQL (EC2 보안 그룹에서만 접근)
+  - Python AI 서버(FastAPI)는 쓰지 않음
 - 운영: Sentry, GitHub Issues, k6
 
 ## 참고 문서
