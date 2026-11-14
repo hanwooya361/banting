@@ -9,7 +9,7 @@
 - 작업 일지: [docs/devlog.md](docs/devlog.md)
 
 ## 기술 스택
-Java 21 · Spring Boot 3 · JPA · MySQL 8 · React(Vite, TypeScript) · 토스페이먼츠(테스트) · AWS EC2 · RDS · S3 · CloudFront · Docker · GitHub Actions
+Java 21 · Spring Boot 4 · JPA · MySQL 8 · React(Vite, TypeScript) · 토스페이먼츠(테스트) · AWS EC2 · RDS · S3 · CloudFront · Docker · GitHub Actions
 
 ## 운영 방식
 기능(티켓) 하나가 끝날 때마다 main에 머지되고 자동 배포됩니다. 사용자 문의와 피드백은 GitHub Issues로 관리하고, 반영 내역은 서비스의 업데이트 노트에 남깁니다.

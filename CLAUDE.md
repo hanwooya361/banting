@@ -36,7 +36,7 @@
 - 비용: 월 고정비 최소 (EC2 1대 + RDS 1대 + S3·CloudFront, 계정의 프리티어·크레딧 범위 안에서)
 
 ## 기술 스택
-- 백엔드: Java 21, Spring Boot 3, Spring Data JPA, Spring Security + JWT, Gradle. 기능별 패키지(user, groupbuy, participation, payment, pickup, settlement, inquiry, common, config)
+- 백엔드: Java 21, Spring Boot 4 (4.1.2, 2026-11-14 변경: Initializr에서 3.x 제공 종료), Spring Data JPA, Spring Security + JWT, Gradle. 기능별 패키지(user, groupbuy, participation, payment, pickup, settlement, inquiry, common, config)
 - DB: MySQL 8 + Flyway. 배포는 AWS RDS, 로컬은 Docker Compose MySQL, 테스트는 Testcontainers
 - 프론트: React (Vite) + TypeScript + Tailwind
 - 결제: 토스페이먼츠 결제위젯 테스트 키 / 파일: AWS S3 (presigned URL)
@@ -63,10 +63,10 @@
 - 피드백으로 생긴 작업은 GitHub Issue 번호를 PR과 devlog에 남김
 
 ## 진행 상황
-- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push)
-- 다음: T02 백엔드·프론트 프로젝트 생성
+- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health)
+- 다음: T03 CI (GitHub Actions 빌드·테스트, 브랜치 보호)
 
-## 실행 명령 (T02 이후 채움)
+## 실행 명령
 - 백엔드: `cd backend && gradlew.bat bootRun`, 확인 http://localhost:8080/api/health
 - 프론트: `cd frontend && npm install && npm run dev` (http://localhost:5173)
 - 테스트: `cd backend && gradlew.bat test`
