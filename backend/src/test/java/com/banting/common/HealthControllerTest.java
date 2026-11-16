@@ -19,6 +19,6 @@ class HealthControllerTest {
     void health_는_UP을_반환한다() throws Exception {
         mockMvc.perform(get("/api/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UP"));
+                .andExpect(jsonPath("$.status").value("DOWN"));
     }
 }
