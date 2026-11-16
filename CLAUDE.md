@@ -69,10 +69,11 @@
 - 다음: T05 ERD 확정, Flyway V1 (로컬 MySQL 3310 compose, 서버 MySQL 연결)
 
 ## 실행 명령
-- 백엔드: `cd backend && gradlew.bat bootRun`, 확인 http://localhost:8090/api/health
+- 로컬 DB: 루트에서 `docker compose up -d` (MySQL 8.4, localhost:3310, banting/banting-local). 정리 `docker compose down`, 데이터까지 지우려면 `-v`
+- 백엔드: `cd backend && gradlew.bat bootRun` (기본 프로필 local, 로컬 DB가 먼저 떠 있어야 함), 확인 http://localhost:8090/api/health
 - 프론트: `cd frontend && npm install && npm run dev` (http://localhost:5180)
-- 테스트: `cd backend && gradlew.bat test`
-- 로컬 포트 (다른 프로젝트 wms·makchabyeol·aiops와 겹치지 않게 고정, 자세히는 docs/infra.md): Spring 8090, Vite 5180, MySQL 3310(T05부터)
+- 테스트: `cd backend && gradlew.bat test` (Testcontainers가 MySQL 8.4를 띄우므로 Docker 실행 필요)
+- 로컬 포트 (다른 프로젝트 wms·makchabyeol·aiops와 겹치지 않게 고정, 자세히는 docs/infra.md): Spring 8090, Vite 5180, MySQL 3310
 - Docker 이름: compose 프로젝트 `banting`, 컨테이너·볼륨·네트워크는 전부 `banting-` 접두사
 - 서버 켜기/끄기 (개발 기간엔 쓸 때만 켬, 먼저 `aws login --region ap-southeast-2`): `powershell -ExecutionPolicy Bypass -File scripts\ec2-start.ps1` / `scripts\ec2-stop.ps1`
 - 운영 주소: https://d3i3a9qd0hlqm6.cloudfront.net (API는 같은 주소의 /api/*). 리소스·배포 흐름은 docs/infra.md

@@ -1,6 +1,6 @@
 # 반띵 기술 설계
 
-> T05에서 확정. 그 전까지는 초안이며, 바꿀 때는 이 문서를 먼저 고친다.
+> 2026-11-16 T05에서 ERD 확정 (Flyway `V1__init.sql`). 이후 스키마 변경은 이 문서를 먼저 고치고 새 마이그레이션(V2…)으로만 한다.
 
 ## 1. 아키텍처
 > 2026-11-16 변경: AWS 새 가입 방식(Builder ID 프로젝트)의 무료 플랜으로 확정. 리전은 시드니(ap-southeast-2) 고정, 도메인은 사지 않는다. 크레딧 100달러로 6개월(2027-05-16)을 버티기 위해 RDS 대신 EC2 안 MySQL을 쓴다. Python AI 서버는 두지 않는다.
@@ -29,6 +29,14 @@
   - DB 스키마는 백엔드 시작 시 Flyway가 EC2 안 MySQL에 적용
 
 ## 2. ERD (MVP)
+
+공통 규칙 (T05 확정)
+- 모든 테이블에 `created_at`, `updated_at` DATETIME(6) NOT NULL. 앱이 Asia/Seoul 기준으로 채우고 DB 기본값은 두지 않음
+- 상태값은 VARCHAR (MySQL ENUM은 값 추가 시 테이블 변경이 필요해 쓰지 않음), 금액 BIGINT, 비율만 DECIMAL
+- FK는 실제 제약, 기본 RESTRICT. 공구 이미지만 CASCADE
+- POINT SRID 4326의 축 순서는 **(위도, 경도)**: `ST_PointFromText('POINT(위도 경도)', 4326)`
+- CHECK 제약: 정원(`reserved_units ≤ capacity_units`, `paid_units ≤ reserved_units`), 금액 양수, 정산 `gross = fee + net`, 반경 500/1000/3000. MySQL CHECK 위반(오류 3819)은 Spring이 `DataIntegrityViolationException`이 아니라 `UncategorizedSQLException`으로 던진다 (T13 참고)
+- JPA는 `ddl-auto=validate`: 스키마는 Flyway만 바꾸고, 엔티티는 해당 티켓에서 만든다
 
 ```
 users 1 ─ N group_buys (host)
@@ -100,7 +108,7 @@ id, group_buy_id FK, url VARCHAR(500), sort_order INT
 | received_at | DATETIME(6) NULL | |
 | created_at, updated_at | DATETIME(6) | |
 
-제약: UNIQUE(group_buy_id, user_id) — 한 공구에 한 번만 참여. 취소 후 재참여는 같은 행을 재사용하지 않고 막는다(MVP).
+제약: UNIQUE(group_buy_id, user_id) — 한 공구에 한 사람당 한 행. 결제 대기 만료·결제 실패로 CANCELED가 된 행은 같은 행을 PENDING_PAYMENT로 되돌려 재참여를 허용하고(결제창을 실수로 닫아도 다시 참여 가능), 결제 후 본인 취소(REFUNDED)는 재참여를 막는다 (2026-11-16 변경)
 
 ### payments
 | 컬럼 | 타입 | 설명 |
@@ -142,7 +150,7 @@ id, group_buy_id UNIQUE, host_id, gross_amount, fee_rate DECIMAL(5,4), fee_amoun
 - 전이는 엔티티 메서드(`open()`, `confirm()`, `fail(reason)` 등)에서만 하고, 허용되지 않은 전이는 예외
 
 ### 참여 (participations.status)
-PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · PAID → REFUNDED (마감 전 본인 취소, 공구 실패) · PAID → RECEIVED (수령 확인)
+PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED → PENDING_PAYMENT (같은 공구 재참여, 행 재사용) · PAID → REFUNDED (마감 전 본인 취소, 공구 실패) · PAID → RECEIVED (수령 확인)
 
 ## 4. 핵심 로직
 
