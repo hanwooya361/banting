@@ -73,6 +73,7 @@ powershell -ExecutionPolicy Bypass -File scripts\ec2-start.ps1   # 켜기 + 최�
 powershell -ExecutionPolicy Bypass -File scripts\ec2-stop.ps1    # 끄기
 ```
 - `aws login --region ap-southeast-2` 세션이 만료되면 스크립트가 안내하고 멈춘다
+- 스크립트는 `AWS_CLI_FILE_ENCODING`·`AWS_CLI_OUTPUT_ENCODING`을 UTF-8로 지정한다 (윈도우 기본 CP949 때문에 SSM 명령·출력의 한글이 깨지거나 전송이 실패함). .ps1 파일은 PowerShell 5.1이 한글을 읽도록 UTF-8 BOM으로 저장
 - 켜기: GHCR `main` 이미지의 `org.opencontainers.image.revision` 라벨과 서버의 `.current_tag`를 비교해 다르면 `deploy.sh` 실행 (꺼져 있는 동안 건너뛴 배포 반영)
 - 꺼져 있는 동안 EC2 사용료는 0, 디스크(gp3 20GB)와 공인 IPv4 요금은 계속 나간다
 

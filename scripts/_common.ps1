@@ -1,5 +1,10 @@
 ﻿# ec2-start.ps1 / ec2-stop.ps1 공통 설정
 $ErrorActionPreference = 'Stop'
+# 윈도우 기본 인코딩(CP949) 대신 UTF-8로 file:// 파라미터를 읽게 함 (SSM 명령 안의 한글)
+$env:AWS_CLI_FILE_ENCODING = 'UTF-8'
+# aws 출력도 UTF-8로 내보내고, 콘솔도 UTF-8로 해석하게 (서버 출력의 한글 깨짐 방지)
+$env:AWS_CLI_OUTPUT_ENCODING = 'UTF-8'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $script:InstanceId = 'i-0e201a85db57461dd'
 $script:Region     = 'ap-southeast-2'
