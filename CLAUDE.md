@@ -63,8 +63,8 @@
 - 피드백으로 생긴 작업은 GitHub Issue 번호를 PR과 devlog에 남김
 
 ## 진행 상황
-- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health)
-- 다음: T03 CI (GitHub Actions 빌드·테스트, 브랜치 보호)
+- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호)
+- 다음: T04 CD (프론트 S3+CloudFront, 백엔드 EC2+Nginx+HTTPS, RDS)
 
 ## 실행 명령
 - 백엔드: `cd backend && gradlew.bat bootRun`, 확인 http://localhost:8080/api/health
