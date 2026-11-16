@@ -2,6 +2,11 @@
 
 > 작업마다 무엇을, 왜 했는지 3줄. 최신이 위.
 
+## 2026-11-16 · T05 ERD 확정, Flyway V1, DB 백업
+- ERD를 V1__init.sql로 확정: 10개 테이블, 공간 인덱스, FK, CHECK(정원 초과·금액·정산 합계). 결제창을 닫으면 영영 재참여 못 하는 문제를 발견해 만료·결제 실패 행은 재사용하도록 설계를 바꿈. 엔티티는 각 티켓에서 만들고 ddl-auto=validate로 어긋남을 기동 시점에 잡음
+- Testcontainers MySQL 8.4로 마이그레이션·제약을 테스트하다 MySQL CHECK 위반이 DataIntegrityViolationException이 아니라 UncategorizedSQLException으로 번역되는 것을 확인해 T13용으로 기록. 로컬은 compose(3310), 서버는 기존 .env 비밀번호로 연결해 새 비밀 값 없이 배포
+- 매일 mysqldump → S3(14일 보관) 백업을 systemd timer(Persistent)로 구성해 서버를 꺼서 놓친 백업도 부팅 때 실행. 서버 역할엔 삭제 권한을 주지 않고, 별도 DB 복원으로 백업이 실제로 복원되는지 확인. 다음은 T06
+
 ## 2026-11-16 · T04 CD (S3+CloudFront, EC2 자동 배포)
 - CloudFront 기본 주소 하나로 `/*`는 S3, `/api/*`는 EC2(t4g.micro, Spring + MySQL compose)로 묶고, main 머지 시 paths-filter로 바뀐 쪽만 배포(프론트: S3 sync·무효화, 백엔드: ARM 이미지 → GHCR → SSM으로 deploy.sh, 헬스체크 실패 시 직전 SHA 롤백). 리소스는 CLI로 만들고 docs/infra.md에 기록
 - 무료 플랜 SCP가 OIDC 공급자 생성을 막아 리소스 단위로 권한을 좁힌 배포 전용 IAM 사용자 키로 대체. 개발 기간엔 EC2를 쓸 때만 켜도록 ec2-start/stop 스크립트를 만들고, 꺼져 있으면 백엔드 배포는 경고 후 건너뛰고 켤 때 최신 이미지로 맞춤

@@ -7,6 +7,21 @@ NEW_TAG="$1"
 DIR=/opt/banting
 cd "$DIR"
 
+# 같은 커밋의 운영 스크립트(백업·복원)와 systemd 타이머를 설치 → 백업 설정도 PR 머지만으로 반영
+install_ops() {
+  local raw="https://raw.githubusercontent.com/hanwooya361/banting/${NEW_TAG}/deploy"
+  for f in backup.sh restore.sh; do
+    curl -fsSL "$raw/$f" -o "$DIR/$f"
+    chmod 700 "$DIR/$f"
+  done
+  for f in banting-backup.service banting-backup.timer; do
+    curl -fsSL "$raw/$f" -o "/etc/systemd/system/$f"
+  done
+  systemctl daemon-reload
+  systemctl enable --now banting-backup.timer > /dev/null
+}
+install_ops
+
 PREV_TAG="$(cat .current_tag 2>/dev/null || true)"
 echo "배포 시작: ${PREV_TAG:-없음} → ${NEW_TAG}"
 

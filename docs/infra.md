@@ -39,7 +39,8 @@
 | EC2 | `i-0e201a85db57461dd` (`banting-server`) | t4g.micro (ARM, 1GB), AL2023, gp3 20GB, IMDSv2 필수, 첫 부팅 `deploy/user-data.sh` (Docker·compose·스왑 2GB·`/opt/banting/.env`) |
 | 탄력적 IP | `16.178.252.199` (`eipalloc-0969ad4d9e55a1188`) | 껐다 켜도 CloudFront 오리진 주소(`ec2-16-178-252-199.ap-southeast-2.compute.amazonaws.com`) 유지 |
 | 보안 그룹 | `sg-0751f120fc2f1d4f2` (`banting-ec2-sg`) | 인바운드 80 ← CloudFront 관리형 접두사 목록 `pl-b8a742d1`만. 22 없음 |
-| IAM 역할 | `banting-ec2-role` / 프로파일 `banting-ec2-profile` | EC2용, `AmazonSSMManagedInstanceCore` (Session Manager·Run Command) |
+| IAM 역할 | `banting-ec2-role` / 프로파일 `banting-ec2-profile` | EC2용, `AmazonSSMManagedInstanceCore` (Session Manager·Run Command) + 인라인 `banting-backup` (백업 버킷 `mysql/*` 쓰기·읽기, 삭제 권한 없음) |
+| S3 (백업) | `banting-backup-150604516450` | 퍼블릭 차단, 수명 주기 `mysql/` 14일 후 삭제 |
 | IAM 사용자 | `banting-github-deploy` | GitHub Actions 배포용. 인라인 정책 `banting-deploy`: 위 버킷 쓰기, 위 배포 무효화, 위 인스턴스에만 SSM SendCommand, DescribeInstances |
 
 ### 왜 OIDC가 아니라 IAM 사용자 키인가
@@ -77,7 +78,22 @@ powershell -ExecutionPolicy Bypass -File scripts\ec2-stop.ps1    # 끄기
 - 켜기: GHCR `main` 이미지의 `org.opencontainers.image.revision` 라벨과 서버의 `.current_tag`를 비교해 다르면 `deploy.sh` 실행 (꺼져 있는 동안 건너뛴 배포 반영)
 - 꺼져 있는 동안 EC2 사용료는 0, 디스크(gp3 20GB)와 공인 IPv4 요금은 계속 나간다
 
-## 6. 서버 접속·점검
+## 6. DB 백업·복원
+
+- 매일 04:00(KST) systemd timer `banting-backup.timer` → `/opt/banting/backup.sh`: `mysqldump --single-transaction` → gzip → `s3://banting-backup-150604516450/mysql/YYYY/MM/banting-YYYYmmdd-HHMMSS.sql.gz`
+- cron이 아니라 systemd timer를 쓰는 이유: `Persistent=true`라 서버가 꺼져 있어 놓친 백업을 다음 부팅 때 실행 (개발 기간엔 서버를 자주 끔). 부팅 직후엔 MySQL 컨테이너가 뜰 때까지 기다린 뒤 실행
+- 백업 스크립트와 타이머는 `deploy.sh`가 배포마다 같은 커밋 버전으로 설치 (`deploy/backup.sh`, `restore.sh`, `banting-backup.service`, `.timer`)
+- 서버는 백업을 지울 수 없음 (역할에 Delete 권한 없음). 삭제는 수명 주기 규칙만
+
+```bash
+sudo systemctl start banting-backup.service          # 지금 백업
+systemctl list-timers banting-backup.timer          # 다음 실행 시각
+journalctl -u banting-backup.service -n 20          # 백업 로그
+sudo /opt/banting/restore.sh                        # 최신 백업을 banting_restore_test DB에 복원해 확인
+# 운영 DB로 복원: docker compose stop app → sudo /opt/banting/restore.sh <S3 키> banting → docker compose start app
+```
+
+## 7. 서버 접속·점검
 
 SSH 대신 SSM Session Manager (콘솔: EC2 → 인스턴스 → 연결 → Session Manager). 자주 보는 명령:
 ```bash
@@ -86,13 +102,13 @@ docker compose ps; docker logs --tail 100 banting-app
 cat .current_tag; free -m; docker stats --no-stream
 ```
 
-## 7. 비용 (월, 크레딧 120달러 기준)
+## 8. 비용 (월, 크레딧 120달러 기준)
 
 | 항목 | 상시 켬 | 메모 |
 |---|---|---|
 | EC2 t4g.micro | 약 $8 | 끄면 0 |
 | 공인 IPv4 (탄력적 IP) | 약 $3.6 | 꺼져 있어도 부과 |
 | EBS gp3 20GB | 약 $2 | 꺼져 있어도 부과 |
-| S3·CloudFront | 1달러 미만 | 트래픽 적음 |
+| S3·CloudFront | 1달러 미만 | 트래픽 적음, 백업은 14일치만 보관 |
 
 예산 알림: Budgets 월 $15 (크레딧 제외 집계).

@@ -1,0 +1,10 @@
+[Unit]
+Description=banting MySQL backup to S3
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+# 부팅 직후 놓친 백업이 실행될 때 MySQL 컨테이너가 뜰 때까지 최대 5분 대기
+ExecStartPre=/bin/bash -c 'for i in $(seq 1 60); do docker exec banting-mysql mysqladmin ping -h localhost --silent && exit 0; sleep 5; done; exit 1'
+ExecStart=/opt/banting/backup.sh
