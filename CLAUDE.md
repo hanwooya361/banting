@@ -69,6 +69,10 @@
 - 다음: T04 CD (S3 + CloudFront 기본 주소, `/api/*`는 EC2로 라우팅, EC2에 Spring + MySQL Docker Compose)
 
 ## 실행 명령
-- 백엔드: `cd backend && gradlew.bat bootRun`, 확인 http://localhost:8080/api/health
-- 프론트: `cd frontend && npm install && npm run dev` (http://localhost:5173)
+- 백엔드: `cd backend && gradlew.bat bootRun`, 확인 http://localhost:8090/api/health
+- 프론트: `cd frontend && npm install && npm run dev` (http://localhost:5180)
 - 테스트: `cd backend && gradlew.bat test`
+- 로컬 포트 (다른 프로젝트 wms·makchabyeol·aiops와 겹치지 않게 고정, 자세히는 docs/infra.md): Spring 8090, Vite 5180, MySQL 3310(T05부터)
+- Docker 이름: compose 프로젝트 `banting`, 컨테이너·볼륨·네트워크는 전부 `banting-` 접두사
+- 서버 켜기/끄기 (개발 기간엔 쓸 때만 켬, 먼저 `aws login --region ap-southeast-2`): `powershell -ExecutionPolicy Bypass -File scripts\ec2-start.ps1` / `scripts\ec2-stop.ps1`
+- 운영 주소: https://d3i3a9qd0hlqm6.cloudfront.net (API는 같은 주소의 /api/*). 리소스·배포 흐름은 docs/infra.md

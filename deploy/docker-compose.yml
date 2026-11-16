@@ -1,0 +1,53 @@
+# EC2(/opt/banting)에서 실행하는 운영용 compose. 배포 시 deploy.sh가 커밋 SHA 기준으로 이 파일을 내려받는다.
+# 이름 규칙: 프로젝트 banting, 컨테이너·볼륨·네트워크는 banting- 접두사 (docs/infra.md)
+name: banting
+
+services:
+  app:
+    image: ghcr.io/hanwooya361/banting-backend:${APP_TAG:?APP_TAG가 필요합니다}
+    container_name: banting-app
+    restart: unless-stopped
+    ports:
+      - "80:8090"            # CloudFront → EC2:80 → 컨테이너 8090
+    env_file:
+      - path: .env           # EC2에서 생성한 비밀 값 (저장소에 없음)
+        required: true
+    mem_limit: 512m          # 힙 320m + 메타스페이스·스레드 여유
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [banting-net]
+
+  mysql:
+    image: mysql:8.4
+    container_name: banting-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: banting
+      MYSQL_USER: banting
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD가 필요합니다}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD가 필요합니다}
+    # 1GB 서버용 메모리 축소 설정 (기본 버퍼 풀 128M, performance_schema가 수백 MB를 씀)
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --performance-schema=OFF
+      - --max-connections=40
+      - --innodb-log-buffer-size=8M
+    mem_limit: 384m
+    # 포트를 호스트에 노출하지 않음: banting-net 안의 app만 접근
+    volumes:
+      - banting-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [banting-net]
+
+volumes:
+  banting-mysql-data:
+    name: banting-mysql-data
+
+networks:
+  banting-net:
+    name: banting-net
