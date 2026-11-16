@@ -65,8 +65,8 @@
 - 피드백으로 생긴 작업은 GitHub Issue 번호를 PR과 devlog에 남김
 
 ## 진행 상황
-- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호), T04 (CD: S3+CloudFront, EC2 자동 배포, 켜기/끄기 스크립트)
-- 다음: T05 ERD 확정, Flyway V1 (로컬 MySQL 3310 compose, 서버 MySQL 연결)
+- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호), T04 (CD: S3+CloudFront, EC2 자동 배포, 켜기/끄기 스크립트), T05 (ERD 확정, Flyway V1, DB 백업)
+- 다음: T06 회원가입·로그인(JWT)
 
 ## 실행 명령
 - 로컬 DB: 루트에서 `docker compose up -d` (MySQL 8.4, localhost:3310, banting/banting-local). 정리 `docker compose down`, 데이터까지 지우려면 `-v`
