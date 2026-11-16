@@ -2,6 +2,11 @@
 
 > 작업마다 무엇을, 왜 했는지 3줄. 최신이 위.
 
+## 2026-11-16 · 배포 구성 변경 (AWS 무료 플랜)
+- AWS 새 가입 방식 무료 플랜(크레딧 100달러, 2027-05-16까지, 시드니 리전 고정)으로 계정을 만들어 문서의 배포 구성을 다시 잡음
+- 모든 사용량이 크레딧에서 차감되므로 RDS를 빼고 EC2 안 Docker MySQL(볼륨 + S3 백업)로 바꿈. 도메인 없이 CloudFront 기본 주소 하나로 `/*`는 S3, `/api/*`는 EC2로 라우팅해 HTTPS·CORS 문제를 한 번에 해결
+- T04 완료 조건을 "CloudFront 주소에서 화면과 /api/health 모두 HTTPS 응답"으로 조정. 다음은 T04
+
 ## 2026-11-16 · T03 CI (GitHub Actions, 브랜치 보호)
 - PR마다 backend(`./gradlew build`)와 frontend(`npm ci`→lint→build) job을 돌리는 ci.yml 추가. 리눅스 러너에서 막히지 않도록 gradlew에 실행 권한(100755)을 줌
 - main 보호 규칙으로 두 검사 통과·PR 필수, 관리자 우회 금지(enforce_admins). 경로 필터는 필수 검사가 영영 대기하는 문제가 있어 두 job 모두 항상 실행
