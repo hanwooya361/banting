@@ -42,6 +42,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/signup", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout")
                         .permitAll()
+                        // 공구 목록·상세는 로그인 없이 볼 수 있다 (화면 흐름 1: 둘러보고 참여할 때 로그인)
+                        .requestMatchers(HttpMethod.GET, "/api/group-buys", "/api/group-buys/*").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

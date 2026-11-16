@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.banting.TestcontainersConfiguration;
+import com.banting.support.DatabaseCleaner;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import java.time.Instant;
@@ -50,8 +51,7 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void cleanUp() {
-        jdbc.update("DELETE FROM refresh_tokens");
-        jdbc.update("DELETE FROM users");
+        DatabaseCleaner.clean(jdbc);
     }
 
     // ───── 가입·로그인·내 정보 ─────

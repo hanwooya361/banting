@@ -42,6 +42,7 @@
 | IAM 역할 | `banting-ec2-role` / 프로파일 `banting-ec2-profile` | EC2용, `AmazonSSMManagedInstanceCore` (Session Manager·Run Command) + 인라인 `banting-backup` (백업 버킷 `mysql/*` 쓰기·읽기, 삭제 권한 없음) + 인라인 `banting-parameters` (`/banting/prod/*` GetParameter만) |
 | Parameter Store | `/banting/prod/kakao-rest-api-key` (SecureString, 기본 aws/ssm 키) | 콘솔에서 직접 입력. `deploy.sh`가 배포마다 읽어 `.env`의 `KAKAO_REST_API_KEY`로 반영 |
 | S3 (백업) | `banting-backup-150604516450` | 퍼블릭 차단, 수명 주기 `mysql/` 14일 후 삭제 |
+| S3 (사진, T08) | `banting-images-150604516450` | 퍼블릭 차단. `images/tmp/`(업로드, 수명 주기 1일) → `images/group-buys/`(공개). CORS: CloudFront 주소·localhost:5180에서 PUT만. 버킷 정책: 위 CloudFront가 `images/group-buys/*`만 GetObject. CloudFront 오리진 `s3-images`(같은 OAC) + 동작 `/images/*` (CachingOptimized). EC2 역할 인라인 `banting-images`: 두 경로 Put·Get·Delete |
 | IAM 사용자 | `banting-github-deploy` | GitHub Actions 배포용. 인라인 정책 `banting-deploy`: 위 버킷 쓰기, 위 배포 무효화, 위 인스턴스에만 SSM SendCommand, DescribeInstances |
 
 ### 왜 OIDC가 아니라 IAM 사용자 키인가

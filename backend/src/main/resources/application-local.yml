@@ -13,3 +13,8 @@ banting:
   jwt:
     # 로컬·테스트 전용 키. 운영 키는 서버 .env에만 있음
     secret: local-development-only-jwt-secret-0123456789
+  images:
+    # 로컬에서도 사진은 운영 CloudFront로 보여준다 (Vite 개발 서버는 /images를 모름)
+    public-base-url: https://d3i3a9qd0hlqm6.cloudfront.net
+    # 로컬 S3 자격 증명: aws login 세션에서 임시 키를 꺼내 쓰고 만료 전 자동 갱신 (aws가 PATH에 있어야 함)
+    credentials-process: aws configure export-credentials --format process

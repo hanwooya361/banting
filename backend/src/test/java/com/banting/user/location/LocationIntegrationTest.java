@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.banting.TestcontainersConfiguration;
+import com.banting.support.DatabaseCleaner;
 import com.banting.common.geo.GeoPoint;
 import com.jayway.jsonpath.JsonPath;
 import java.nio.charset.StandardCharsets;
@@ -64,8 +65,7 @@ class LocationIntegrationTest {
 
     @BeforeEach
     void signupAndLogin() throws Exception {
-        jdbc.update("DELETE FROM refresh_tokens");
-        jdbc.update("DELETE FROM users");
+        DatabaseCleaner.clean(jdbc);
         mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"loc@example.com\",\"password\":\"password123\",\"nickname\":\"동네주민\"}"));
         String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)

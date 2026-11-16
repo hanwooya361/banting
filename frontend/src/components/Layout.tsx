@@ -20,6 +20,9 @@ export function Layout() {
           <nav className="flex items-center gap-3 text-sm">
             {loading ? null : me ? (
               <>
+                <Link to="/group-buys/new" className="rounded-full bg-orange-500 px-3 py-1.5 font-medium text-white">
+                  공구 열기
+                </Link>
                 <Link to="/me" className="font-medium hover:underline">
                   {me.nickname}님
                 </Link>

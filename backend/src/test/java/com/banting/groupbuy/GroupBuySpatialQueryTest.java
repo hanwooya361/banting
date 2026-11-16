@@ -3,6 +3,7 @@ package com.banting.groupbuy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.banting.TestcontainersConfiguration;
+import com.banting.support.DatabaseCleaner;
 import com.banting.common.geo.GeoPoint;
 import com.banting.groupbuy.GroupBuySpatialQuery.Nearby;
 import java.util.List;
@@ -42,6 +43,7 @@ class GroupBuySpatialQueryTest {
 
     @BeforeEach
     void setUp() {
+        DatabaseCleaner.clean(jdbc);
         jdbc.update("INSERT INTO users (email, password_hash, nickname, role, search_radius_m, created_at, updated_at) "
                 + "VALUES ('spatial@test.com', 'h', 'spatial', 'USER', 1000, NOW(6), NOW(6))");
         hostId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
@@ -56,8 +58,7 @@ class GroupBuySpatialQueryTest {
 
     @AfterEach
     void tearDown() {
-        jdbc.update("DELETE FROM group_buys");
-        jdbc.update("DELETE FROM users WHERE id = ?", hostId);
+        DatabaseCleaner.clean(jdbc);
     }
 
     @Test

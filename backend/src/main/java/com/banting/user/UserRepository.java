@@ -28,6 +28,17 @@ public interface UserRepository extends JpaRepository<User, Long> {
     int updateLocation(@Param("id") Long id, @Param("wkt") String wkt, @Param("name") String name,
                        @Param("radius") int radius, @Param("now") LocalDateTime now);
 
+    /** 회원 동네 (공구 개설 시 공구 위치로 복사). ST_AsText는 SRID 4326에서 (위도 경도) 순서로 출력한다. */
+    @Query(value = "SELECT ST_AsText(location) AS wkt, neighborhood_name AS neighborhoodName "
+            + "FROM users WHERE id = :id AND location IS NOT NULL", nativeQuery = true)
+    Optional<LocationView> findLocation(@Param("id") Long id);
+
+    interface LocationView {
+        String getWkt();
+
+        String getNeighborhoodName();
+    }
+
     /** 좌표는 그대로 두고 반경만 변경. 동네가 아직 없으면 0건. */
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)

@@ -65,14 +65,15 @@
 - 피드백으로 생긴 작업은 GitHub Issue 번호를 PR과 devlog에 남김
 
 ## 진행 상황
-- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호), T04 (CD: S3+CloudFront, EC2 자동 배포, 켜기/끄기 스크립트), T05 (ERD 확정, Flyway V1, DB 백업), T06 (회원가입·로그인 JWT, refresh 쿠키·rotation), T07 (동네 설정: 카카오 로컬 API, 반경 검색 쿼리), T10 (금액 계산, T08보다 먼저)
-- 다음: T08 공구 개설·수정·삭제, 사진 S3
+- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호), T04 (CD: S3+CloudFront, EC2 자동 배포, 켜기/끄기 스크립트), T05 (ERD 확정, Flyway V1, DB 백업), T06 (회원가입·로그인 JWT, refresh 쿠키·rotation), T07 (동네 설정: 카카오 로컬 API, 반경 검색 쿼리), T10 (금액 계산, T08보다 먼저), T08 (공구 개설·수정·삭제, 사진 S3 presigned)
+- 다음: T09 공구 목록·상세·반경 필터·검색
 
 ## 실행 명령
 - 로컬 DB: 루트에서 `docker compose up -d` (MySQL 8.4, localhost:3310, banting/banting-local). 정리 `docker compose down`, 데이터까지 지우려면 `-v`
 - 백엔드: `cd backend && gradlew.bat bootRun` (기본 프로필 local, 로컬 DB가 먼저 떠 있어야 함), 확인 http://localhost:8090/api/health
 - 프론트: `cd frontend && npm install && npm run dev` (http://localhost:5180)
 - 로컬 비밀 값: `backend/application-secret.yml`(gitignore, 템플릿 `application-secret.example.yml`)에 카카오 REST 키. 비어 있으면 동네 설정만 503
+- 로컬 사진 업로드: `aws login --region ap-southeast-2` 상태여야 함 (백엔드가 `aws configure export-credentials`로 임시 키를 받아 자동 갱신, `aws`가 PATH에 있어야 함). 아니면 사진만 503
 - 테스트: `cd backend && gradlew.bat test` (Testcontainers가 MySQL 8.4를 띄우므로 Docker 실행 필요)
 - 로컬 포트 (다른 프로젝트 wms·makchabyeol·aiops와 겹치지 않게 고정, 자세히는 docs/infra.md): Spring 8090, Vite 5180, MySQL 3310
 - Docker 이름: compose 프로젝트 `banting`, 컨테이너·볼륨·네트워크는 전부 `banting-` 접두사

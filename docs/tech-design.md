@@ -21,7 +21,7 @@
 - React 라우트 새로고침은 기본 동작(`/*`)에만 붙인 CloudFront Function이 `/index.html`로 바꿔 처리한다. 오류 응답 대체(404 → index.html)는 배포 전체에 걸려 API 404까지 HTML이 되므로 쓰지 않는다
 - 개발 기간에는 EC2를 쓸 때만 켠다 (`scripts/ec2-start.ps1`, `ec2-stop.ps1`). 꺼져 있을 때 백엔드 배포는 이미지 push까지만 하고 경고와 함께 건너뛰며, 켜기 스크립트가 최신 이미지로 맞춘다
 - MySQL은 EC2 안 Docker 볼륨에 저장하고, 하루 1회 mysqldump를 S3로 백업
-- 사진용 S3 버킷과 프론트용 S3 버킷은 분리
+- 사진용 S3 버킷과 프론트용 S3 버킷은 분리 (T08: `banting-images-*`, CloudFront `/images/*`로 같은 주소에서 서비스)
 - 새 가입 방식은 허용된 서비스만 쓸 수 있으므로, T04 시작 전에 EC2·S3·CloudFront 사용 가능 여부를 콘솔에서 먼저 확인
 - 배포 (GitHub Actions, 바뀐 폴더만)
   - `frontend/**` 변경: 빌드 → `aws s3 sync` → CloudFront 캐시 무효화
@@ -161,6 +161,16 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 - 1자리당 금액이 1원 미만이면 개설 거부. 곱셈·덧셈은 Math.multiplyExact/addExact로 오버플로 시 예외
 - 서버가 계산한 금액만 신뢰, 클라이언트 금액은 비교용
 
+### 공구 개설·수정·삭제 (T08)
+- 개설: 검증 → (트랜잭션 밖) tmp 사진을 공개 위치로 복사 → (짧은 트랜잭션) 공구 DRAFT + 개설자 참여(PENDING_PAYMENT, 금액 = Pricing.hostAmount, 만료 10분) + `reserved_units` = 개설자 몫 + 수령 후보 + 사진. DB 실패 시 복사한 사진 삭제(보상). 개설자 결제(orderId)는 T11에서 이 흐름에 붙임
+- 공구 좌표는 개설자 동네 좌표를 복사. 엔티티에서는 `@ColumnTransformer`(쓰기 ST_PointFromText, 읽기 ST_AsText)로 WKT 문자열을 다룸. 스키마 검증에서 MySQL 드라이버가 공간 컬럼을 `geometry`로 보고하므로 columnDefinition을 `geometry`로 맞춤
+- 규칙: 링크 http/https 필수, 마감 1시간~14일, 균등 2~20명, 수량별은 개설자 몫을 빼고도 최소 수량만큼 자리가 남아야 함, 수령 후보 1~3개는 마감 이후 14일 안
+- 수정: 상품명·설명·카테고리·사진·마감 연장만. 금액·수량·인원·링크는 결제 금액이 바뀌므로 불가(삭제 후 재개설). DRAFT·OPEN에서만
+- 삭제: T08은 DRAFT만. 결제된 공구 삭제는 개설자 환불이 필요해 T12
+- 수정·삭제는 공구 행을 `SELECT … FOR UPDATE`로 잠근 뒤 "개설자 외 PENDING_PAYMENT·PAID 참여자 없음"을 확인 → 참여(T13 조건부 UPDATE)와 직렬화되어 확인-실행 사이 끼어들기 불가. `@Version` 낙관적 락도 둠
+- DRAFT 공구는 개설자에게만 보이고 남에게는 404 (존재 여부도 숨김)
+- 사진: `POST /api/uploads/presigned`가 `images/tmp/{회원}/{uuid}.{ext}` presigned PUT URL(5분, Content-Type·Content-Length 서명) 발급 → 브라우저가 S3에 직접 업로드(긴 변 1600px·webp로 줄여서) → 저장 시 서버가 키 형식·소유자·존재를 확인하고 `images/group-buys/`로 복사. tmp는 S3 수명 주기 1일. 빠진 사진은 DB 커밋 후에만 S3에서 삭제
+
 ### 마지막 자리 동시성 (T13)
 1. 참여 요청 시 조건부 UPDATE로 자리를 먼저 잡는다
    `UPDATE group_buys SET reserved_units = reserved_units + :u WHERE id = :id AND status = 'OPEN' AND deadline_at > NOW() AND reserved_units + :u <= capacity_units`
@@ -209,12 +219,12 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 | GET | /api/locations/region | 좌표의 동네 이름 미리보기 (lat, lng) | 회원 |
 | GET | /api/locations/search | 주소·장소 검색 (query, 최대 5건) | 회원 |
 | DELETE | /api/users/me | 탈퇴 | 회원 |
-| POST | /api/uploads/presigned | S3 업로드 URL 발급 | 회원 |
-| POST | /api/group-buys | 공구 개설(DRAFT) + 개설자 결제 준비 → orderId | 회원 |
+| POST | /api/uploads/presigned | S3 업로드 URL 발급 (jpg·png·webp, 5MB) | 회원 |
+| POST | /api/group-buys | 공구 개설(DRAFT) + 개설자 자리 예약 (T08), 개설자 결제 준비 → orderId (T11) | 회원 |
 | GET | /api/group-buys | 목록 (lat, lng, radius, category, keyword, sort, page) | 공개 |
 | GET | /api/group-buys/{id} | 상세 (진행률, 수령 후보, 내 참여 여부) | 공개 |
-| PATCH | /api/group-buys/{id} | 수정 (개설자 외 참여자 없을 때) | 개설자 |
-| DELETE | /api/group-buys/{id} | 삭제 (개설자 외 참여자 없을 때, 개설자 몫 환불) | 개설자 |
+| PATCH | /api/group-buys/{id} | 수정: 상품명·설명·카테고리·사진·마감 연장 (개설자 외 참여자 없을 때) | 개설자 |
+| DELETE | /api/group-buys/{id} | 삭제 (개설자 외 참여자 없을 때). T08은 DRAFT만, 결제된 공구는 개설자 몫 환불과 함께 T12 | 개설자 |
 | POST | /api/group-buys/{id}/cancel | 모집 중 취소 → 전원 환불 | 개설자 |
 | POST | /api/group-buys/{id}/purchased | "구매했어요" (CONFIRMED → PICKUP) | 개설자 |
 | POST | /api/group-buys/{id}/participations | 참여 (units) → orderId, amount | 회원 |
