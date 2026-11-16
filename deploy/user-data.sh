@@ -29,5 +29,7 @@ if [ ! -f /opt/banting/.env ]; then
 SPRING_PROFILES_ACTIVE=prod
 MYSQL_PASSWORD=$(openssl rand -hex 24)
 MYSQL_ROOT_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -base64 48 | tr -d '
+')
 ENV
 fi

@@ -11,5 +11,12 @@ spring:
     # 컨트롤러·뷰까지 DB 세션을 열어 두지 않음 (지연 로딩 쿼리가 숨어서 나가는 것 방지)
     open-in-view: false
 
+banting:
+  jwt:
+    issuer: banting
+    access-ttl: 30m
+    refresh-ttl: 14d
+    # secret은 프로필별 파일에서 (local: 개발용 고정값, prod: 서버 .env의 JWT_SECRET)
+
 server:
   port: 8090  # 다른 프로젝트(8080)와 겹치지 않게. 포트 목록은 docs/infra.md

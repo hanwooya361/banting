@@ -5,3 +5,8 @@ spring:
     url: jdbc:mysql://localhost:3310/banting
     username: banting
     password: banting-local
+
+banting:
+  jwt:
+    # 로컬·테스트 전용 키. 운영 키는 서버 .env에만 있음
+    secret: local-development-only-jwt-secret-0123456789

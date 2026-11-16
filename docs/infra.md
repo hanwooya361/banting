@@ -85,6 +85,9 @@ powershell -ExecutionPolicy Bypass -File scripts\ec2-stop.ps1    # 끄기
 - 백업 스크립트와 타이머는 `deploy.sh`가 배포마다 같은 커밋 버전으로 설치 (`deploy/backup.sh`, `restore.sh`, `banting-backup.service`, `.timer`)
 - 서버는 백업을 지울 수 없음 (역할에 Delete 권한 없음). 삭제는 수명 주기 규칙만
 
+### 서버 비밀 값 (`/opt/banting/.env`, 권한 600)
+`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `JWT_SECRET`(T06, 64자). 모두 서버 안에서 `openssl rand`로 생성해 저장소·GitHub·터미널 출력에 나온 적 없음. 새 서버는 `user-data.sh`가 생성. JWT_SECRET을 바꾸면 발급된 access 토큰이 모두 무효(최대 30분 영향), refresh는 DB 기반이라 영향 없음
+
 ```bash
 sudo systemctl start banting-backup.service          # 지금 백업
 systemctl list-timers banting-backup.timer          # 다음 실행 시각

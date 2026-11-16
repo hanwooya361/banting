@@ -5,3 +5,7 @@ spring:
     url: jdbc:mysql://banting-mysql:3306/banting
     username: banting
     password: ${MYSQL_PASSWORD}
+
+banting:
+  jwt:
+    secret: ${JWT_SECRET}

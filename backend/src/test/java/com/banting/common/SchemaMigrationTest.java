@@ -27,9 +27,9 @@ class SchemaMigrationTest {
     JdbcTemplate jdbc;
 
     @Test
-    void V1_마이그레이션이_성공하고_11개_테이블이_생긴다() {
+    void 마이그레이션이_모두_성공하고_테이블이_생긴다() {
         Boolean success = jdbc.queryForObject(
-                "SELECT success FROM flyway_schema_history WHERE version = '1'", Boolean.class);
+                "SELECT MIN(success) FROM flyway_schema_history", Boolean.class);
         assertThat(success).isTrue();
 
         List<String> tables = jdbc.queryForList(
@@ -38,7 +38,8 @@ class SchemaMigrationTest {
                 String.class);
         assertThat(tables).containsExactlyInAnyOrder(
                 "users", "group_buys", "group_buy_images", "participations", "payments",
-                "pickup_options", "pickup_votes", "settlements", "inquiries", "notices");
+                "pickup_options", "pickup_votes", "settlements", "inquiries", "notices",
+                "refresh_tokens");
     }
 
     @Test
