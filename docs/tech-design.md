@@ -15,9 +15,11 @@
 
 - 주소는 CloudFront 기본 주소 하나. HTTPS는 CloudFront가 기본 제공하므로 인증서 발급이 필요 없다
 - 화면과 API가 같은 주소라 CORS 설정이 필요 없다 (로컬 개발은 Vite 프록시)
-- CloudFront → EC2 구간은 HTTP(80). EC2 보안 그룹은 CloudFront 관리형 접두사 목록에서 오는 80만 허용하고, SSH(22)는 내 IP만 허용
+- CloudFront → EC2 구간은 HTTP(80). EC2 보안 그룹은 CloudFront 관리형 접두사 목록에서 오는 80만 허용하고, SSH(22)는 열지 않는다. 서버 접속과 배포 명령은 SSM(Session Manager·Run Command)으로 한다 (2026-11-16 변경, GitHub Actions IP가 계속 바뀌어 SSH를 좁게 열 수 없음)
 - CloudFront 오리진에는 EC2 퍼블릭 DNS를 쓴다. EC2를 중지·시작하면 주소가 바뀌므로 탄력적 IP를 붙인다 (퍼블릭 IPv4 요금이 크레딧에서 차감되는 점 감안)
 - `/api/*` 동작은 캐시 끄기(CachingDisabled), 모든 헤더·쿠키·쿼리 전달. 정적 파일만 캐시
+- React 라우트 새로고침은 기본 동작(`/*`)에만 붙인 CloudFront Function이 `/index.html`로 바꿔 처리한다. 오류 응답 대체(404 → index.html)는 배포 전체에 걸려 API 404까지 HTML이 되므로 쓰지 않는다
+- 개발 기간에는 EC2를 쓸 때만 켠다 (`scripts/ec2-start.ps1`, `ec2-stop.ps1`). 꺼져 있을 때 백엔드 배포는 이미지 push까지만 하고 경고와 함께 건너뛰며, 켜기 스크립트가 최신 이미지로 맞춘다
 - MySQL은 EC2 안 Docker 볼륨에 저장하고, 하루 1회 mysqldump를 S3로 백업
 - 사진용 S3 버킷과 프론트용 S3 버킷은 분리
 - 새 가입 방식은 허용된 서비스만 쓸 수 있으므로, T04 시작 전에 EC2·S3·CloudFront 사용 가능 여부를 콘솔에서 먼저 확인
@@ -214,7 +216,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · PAID →
 - 토스 시크릿 키는 서버에서만 사용
 - 상품 링크는 http/https만 허용
 - 화면과 API가 같은 CloudFront 주소라 CORS는 열지 않는다
-- AWS 키는 배포용 IAM 사용자에 최소 권한(S3 업로드, CloudFront 무효화, 이미지 푸시)만 부여
+- AWS 키는 배포용 IAM 사용자에 최소 권한(이 버킷 업로드, 이 배포 무효화, 이 인스턴스 SSM 명령)만 부여. OIDC가 더 낫지만 무료 플랜 계정의 SCP가 OIDC 공급자 생성을 막아 차선책으로 씀 (docs/infra.md)
 
 ## 7. 티켓과 완료 조건
 | ID | 티켓 | 완료 조건 |

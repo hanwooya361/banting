@@ -3,4 +3,4 @@ spring:
     name: banting
 
 server:
-  port: 8080
+  port: 8090  # 다른 프로젝트(8080)와 겹치지 않게. 포트 목록은 docs/infra.md
