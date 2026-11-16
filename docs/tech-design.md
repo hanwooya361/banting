@@ -3,9 +3,24 @@
 > T05에서 확정. 그 전까지는 초안이며, 바꿀 때는 이 문서를 먼저 고친다.
 
 ## 1. 아키텍처
-- 사용자 → Nginx(HTTPS, React 정적 파일, `/api` 프록시) → Spring Boot → MySQL
-- Spring Boot → S3(사진, presigned URL), 토스페이먼츠(결제 승인·취소), Sentry(에러)
-- 배포: PR → GitHub Actions(빌드·테스트) → main 머지 → Docker 이미지 빌드·푸시 → EC2에서 `docker compose pull && up -d` → `/api/health` 확인, 실패 시 이전 이미지로 롤백
+> 2026-11-12 확정: 프론트 S3 + CloudFront, 백엔드 EC2, DB RDS. Python AI 서버는 두지 않는다.
+
+```
+사용자 ─ https://도메인 ─→ CloudFront ─→ S3 (React 빌드 결과)
+   └── https://api.도메인 ─→ EC2 [Nginx → Spring Boot] ─→ RDS MySQL
+                                     ├→ S3 (상품 사진, presigned URL)
+                                     ├→ 토스페이먼츠 (결제 승인·취소)
+                                     └→ Sentry (에러)
+```
+
+- 프론트와 API가 모두 HTTPS여야 한다 (HTTPS 화면에서 HTTP API를 부르면 브라우저가 막음). 프론트는 CloudFront + ACM 인증서, API는 Nginx + Let's Encrypt
+- 도메인이 다르므로 Spring에서 CORS를 프론트 도메인만 허용
+- RDS는 퍼블릭 접근을 끄고, EC2 보안 그룹에서 오는 3306만 허용
+- 사진용 S3 버킷과 프론트용 S3 버킷은 분리
+- 배포 (GitHub Actions, 바뀐 폴더만)
+  - `frontend/**` 변경: 빌드 → `aws s3 sync` → CloudFront 캐시 무효화
+  - `backend/**` 변경: 테스트 → Docker 이미지 빌드·푸시 → EC2에서 `docker compose pull && up -d` → `/api/health` 확인, 실패 시 이전 이미지로 롤백
+  - DB 스키마는 백엔드 시작 시 Flyway가 RDS에 적용
 
 ## 2. ERD (MVP)
 
@@ -194,6 +209,8 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · PAID →
 - 비밀 값(DB 비밀번호, JWT 키, 토스 시크릿 키, AWS 키)은 GitHub Secrets와 EC2 `.env`에만, 저장소에 커밋 금지
 - 토스 시크릿 키는 서버에서만 사용
 - 상품 링크는 http/https만 허용
+- CORS는 프론트 도메인(CloudFront)과 로컬 개발 주소만 허용
+- AWS 키는 배포용 IAM 사용자에 최소 권한(S3 업로드, CloudFront 무효화, 이미지 푸시)만 부여
 
 ## 7. 티켓과 완료 조건
 | ID | 티켓 | 완료 조건 |
@@ -201,7 +218,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · PAID →
 | T01 | 저장소·폴더 구조, CLAUDE.md, docs 4종 | 문서가 저장소에 있고 GitHub에 푸시 |
 | T02 | Spring Boot·React 프로젝트 생성 | 로컬에서 /api/health 응답, 화면 뜨기 |
 | T03 | CI: GitHub Actions 빌드·테스트 | PR마다 자동 실행, 실패 시 머지 불가(브랜치 보호) |
-| T04 | CD: EC2·Docker Compose·Nginx·HTTPS | main 머지 시 도메인에 자동 반영, 헬스체크 통과 |
+| T04 | CD: 프론트 S3+CloudFront, 백엔드 EC2+Nginx+HTTPS, RDS 생성 | main 머지 시 바뀐 쪽만 자동 배포, 두 도메인 모두 HTTPS, 헬스체크 통과 |
 | T05 | ERD 확정, Flyway V1 | 로컬·서버 DB에 테이블 생성 |
 | T06 | 회원가입·로그인(JWT) | 가입 → 로그인 → 내 정보 조회 동작 |
 | T07 | 위치 기반 동네 설정 | 좌표 저장, 반경 검색 쿼리 테스트 통과 |
