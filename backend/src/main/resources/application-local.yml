@@ -1,6 +1,9 @@
 # 로컬 개발: 루트의 compose.yaml로 띄운 MySQL (docker compose up -d)
 # 로컬 전용 계정이라 비밀번호를 그대로 둔다. 운영 비밀번호는 서버 .env에만 있음
 spring:
+  config:
+    # 로컬 비밀 값(카카오 키 등). 파일이 없어도 기동됨. 템플릿: application-secret.example.yml
+    import: optional:file:./application-secret.yml
   datasource:
     url: jdbc:mysql://localhost:3310/banting
     username: banting

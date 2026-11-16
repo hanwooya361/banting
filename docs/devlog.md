@@ -2,6 +2,11 @@
 
 > 작업마다 무엇을, 왜 했는지 3줄. 최신이 위.
 
+## 2026-11-16 · T07 위치 기반 동네 설정
+- 동네 이름은 카카오 로컬 API를 서버에서 호출해 정하고(가짜 이름 방지), 좌표는 약 100m로 반올림해 저장·응답에서 제외. 좌표는 JPA에 매핑하지 않고 GeoPoint.toWkt()+네이티브 SQL로만 다뤄 (위도, 경도) 축 혼동을 막고, 외부 호출은 트랜잭션 밖에서 끝낸 뒤 UPDATE 한 번으로 저장
+- 반경 검색은 MBR 박스로 공간 인덱스를 태운 뒤 ST_Distance_Sphere로 정밀 필터. 처음 EXPLAIN 테스트가 실패해 보니 비현실적 데이터(마감일 전부 동일)에서 옵티마이저가 (status, deadline_at) 인덱스를 골랐고, 실제 분포로 넣자 공간 인덱스를 골라 "실행 계획은 데이터 분포에 따라 바뀐다"를 기록
+- 카카오 키는 사용자가 Parameter Store에 직접 넣고 EC2 역할은 /banting/prod/*만 읽게 해 deploy.sh가 .env로 반영(대화·GitHub에 키 없음). 테스트 39개(가짜 RegionClient, JDK HttpServer로 카카오 응답 흉내 포함). 다음은 T08
+
 ## 2026-11-16 · T06 회원가입·로그인(JWT)
 - access는 JWT(Spring Security 리소스 서버, 메모리 보관), refresh는 HttpOnly·SameSite=Strict 쿠키 + DB 해시 저장으로 나눠 XSS로 토큰을 훔칠 수 없게 하고, 재발급마다 교체(rotation)·폐기 토큰 재사용 시 전체 로그아웃(탈취 탐지)을 넣음. 동시 재발급은 조건부 UPDATE로 하나만 성공시키고, 탐지 후 예외에도 폐기가 롤백되지 않게 noRollbackFor
 - 개발 중 React StrictMode가 효과를 두 번 실행해 refresh가 두 번 나가면 탈취로 오인돼 바로 로그아웃되는 문제를 미리 보고, 프론트에서 진행 중인 refresh를 공유하도록 함. 슬라이스 테스트에서 @ConfigurationPropertiesScan이 안 먹는 것, @Email이 공백 정리보다 먼저 도는 것도 테스트로 잡아 고침
