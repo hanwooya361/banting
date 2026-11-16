@@ -39,7 +39,8 @@
 | EC2 | `i-0e201a85db57461dd` (`banting-server`) | t4g.micro (ARM, 1GB), AL2023, gp3 20GB, IMDSv2 필수, 첫 부팅 `deploy/user-data.sh` (Docker·compose·스왑 2GB·`/opt/banting/.env`) |
 | 탄력적 IP | `16.178.252.199` (`eipalloc-0969ad4d9e55a1188`) | 껐다 켜도 CloudFront 오리진 주소(`ec2-16-178-252-199.ap-southeast-2.compute.amazonaws.com`) 유지 |
 | 보안 그룹 | `sg-0751f120fc2f1d4f2` (`banting-ec2-sg`) | 인바운드 80 ← CloudFront 관리형 접두사 목록 `pl-b8a742d1`만. 22 없음 |
-| IAM 역할 | `banting-ec2-role` / 프로파일 `banting-ec2-profile` | EC2용, `AmazonSSMManagedInstanceCore` (Session Manager·Run Command) + 인라인 `banting-backup` (백업 버킷 `mysql/*` 쓰기·읽기, 삭제 권한 없음) |
+| IAM 역할 | `banting-ec2-role` / 프로파일 `banting-ec2-profile` | EC2용, `AmazonSSMManagedInstanceCore` (Session Manager·Run Command) + 인라인 `banting-backup` (백업 버킷 `mysql/*` 쓰기·읽기, 삭제 권한 없음) + 인라인 `banting-parameters` (`/banting/prod/*` GetParameter만) |
+| Parameter Store | `/banting/prod/kakao-rest-api-key` (SecureString, 기본 aws/ssm 키) | 콘솔에서 직접 입력. `deploy.sh`가 배포마다 읽어 `.env`의 `KAKAO_REST_API_KEY`로 반영 |
 | S3 (백업) | `banting-backup-150604516450` | 퍼블릭 차단, 수명 주기 `mysql/` 14일 후 삭제 |
 | IAM 사용자 | `banting-github-deploy` | GitHub Actions 배포용. 인라인 정책 `banting-deploy`: 위 버킷 쓰기, 위 배포 무효화, 위 인스턴스에만 SSM SendCommand, DescribeInstances |
 
@@ -86,7 +87,7 @@ powershell -ExecutionPolicy Bypass -File scripts\ec2-stop.ps1    # 끄기
 - 서버는 백업을 지울 수 없음 (역할에 Delete 권한 없음). 삭제는 수명 주기 규칙만
 
 ### 서버 비밀 값 (`/opt/banting/.env`, 권한 600)
-`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `JWT_SECRET`(T06, 64자). 모두 서버 안에서 `openssl rand`로 생성해 저장소·GitHub·터미널 출력에 나온 적 없음. 새 서버는 `user-data.sh`가 생성. JWT_SECRET을 바꾸면 발급된 access 토큰이 모두 무효(최대 30분 영향), refresh는 DB 기반이라 영향 없음
+`MYSQL_PASSWORD`, `MYSQL_ROOT_PASSWORD`, `JWT_SECRET`(T06, 64자)는 서버 안에서 `openssl rand`로 생성. `KAKAO_REST_API_KEY`(T07)는 Parameter Store에서 배포마다 동기화. 모두 저장소·GitHub·터미널 출력에 나온 적 없음. 새 서버는 `user-data.sh`가 생성. JWT_SECRET을 바꾸면 발급된 access 토큰이 모두 무효(최대 30분 영향), refresh는 DB 기반이라 영향 없음
 
 ```bash
 sudo systemctl start banting-backup.service          # 지금 백업

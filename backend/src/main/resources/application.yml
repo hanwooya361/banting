@@ -17,6 +17,10 @@ banting:
     access-ttl: 30m
     refresh-ttl: 14d
     # secret은 프로필별 파일에서 (local: 개발용 고정값, prod: 서버 .env의 JWT_SECRET)
+  kakao:
+    # 카카오 로컬 API REST 키. 비어 있으면 동네 설정·주소 검색이 503으로 응답(앱은 정상 기동)
+    # local: backend/application-secret.yml(gitignore) / prod: Parameter Store → deploy.sh가 서버 .env에 반영
+    rest-api-key: ${KAKAO_REST_API_KEY:}
 
 server:
   port: 8090  # 다른 프로젝트(8080)와 겹치지 않게. 포트 목록은 docs/infra.md

@@ -22,6 +22,19 @@ install_ops() {
 }
 install_ops
 
+# 외부 API 키 등 운영 비밀 값: AWS Parameter Store(SecureString) → .env
+# 키는 저장소·GitHub·터미널 출력에 남지 않는다. EC2 역할은 /banting/prod/* 읽기만 가능
+sync_secret() {
+  local env_name="$1" param_name="$2" value
+  value=$(aws ssm get-parameter --region ap-southeast-2 --name "$param_name" --with-decryption           --query Parameter.Value --output text)
+  umask 077
+  { grep -v "^${env_name}=" .env || true; echo "${env_name}=${value}"; } > .env.tmp
+  mv .env.tmp .env
+  chmod 600 .env
+  echo "비밀 값 반영: ${env_name} (${#value}자)"
+}
+sync_secret KAKAO_REST_API_KEY /banting/prod/kakao-rest-api-key
+
 PREV_TAG="$(cat .current_tag 2>/dev/null || true)"
 echo "배포 시작: ${PREV_TAG:-없음} → ${NEW_TAG}"
 

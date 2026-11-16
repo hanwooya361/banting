@@ -32,7 +32,7 @@ public class UserController {
     public record MeResponse(Long id, String email, String nickname, Role role,
                              String neighborhoodName, int searchRadiusM) {
 
-        static MeResponse from(User user) {
+        public static MeResponse from(User user) {
             return new MeResponse(user.getId(), user.getEmail(), user.getNickname(), user.getRole(),
                     user.getNeighborhoodName(), user.getSearchRadiusM());
         }

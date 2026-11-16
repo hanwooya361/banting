@@ -16,6 +16,8 @@ export type AuthState = {
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, password: string, nickname: string) => Promise<void>
   logout: () => Promise<void>
+  // 내 정보가 바뀐 뒤(동네 설정 등) 다시 불러오기
+  reloadMe: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthState | null>(null)

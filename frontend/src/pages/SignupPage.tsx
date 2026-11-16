@@ -25,7 +25,8 @@ export function SignupPage() {
     setSubmitting(true)
     try {
       await signup(form.email, form.password, form.nickname)
-      navigate('/', { replace: true })
+      // 가입 직후 동네 설정으로 (화면 흐름 1: 로그인 → 동네 설정 → 홈)
+      navigate('/me/location', { replace: true, state: { onboarding: true } })
     } catch (err) {
       if (!(err instanceof ApiError)) {
         setError('잠시 후 다시 시도해 주세요')

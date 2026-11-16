@@ -1,3 +1,4 @@
+import { Link } from 'react-router'
 import { useAuth } from '../auth/context'
 
 export function MePage() {
@@ -22,6 +23,12 @@ export function MePage() {
           </div>
         ))}
       </dl>
+      <Link
+        to="/me/location"
+        className="mt-4 block rounded-lg border border-orange-500 py-2.5 text-center font-medium text-orange-600"
+      >
+        {me.neighborhoodName ? '동네 바꾸기' : '동네 설정하기'}
+      </Link>
     </section>
   )
 }

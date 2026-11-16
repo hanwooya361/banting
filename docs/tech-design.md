@@ -181,8 +181,17 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 - 서버 1대 기준. 여러 대가 되면 ShedLock 도입
 
 ### 반경 검색 (T07, T09)
-`WHERE status = 'OPEN' AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
-반경 박스(MBRContains)로 먼저 거르고 거리로 정밀 필터해 SPATIAL INDEX를 탄다
+`WHERE status = 'OPEN' AND MBRContains(:box, location) AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
+반경 박스(MBRContains, 반경 × 1.1)로 먼저 거르고 거리로 정밀 필터해 SPATIAL INDEX를 탄다 (`GroupBuySpatialQuery`)
+- T07 확인: 공구 3,000건이 전국에 흩어진 분포에서 옵티마이저가 `sp_group_buys_location`을 고름 (EXPLAIN 테스트). 모든 행의 마감일이 같은 비현실적 데이터에서는 `(status, deadline_at)` 인덱스를 골랐음 → 실행 계획은 데이터 분포에 따라 바뀌므로 운영 데이터가 쌓이면 다시 확인 (T13 k6 때)
+
+### 동네 설정 (T07)
+- 좌표 → 동네 이름: 카카오 로컬 API(coord2regioncode, 행정동 H)를 **서버에서** 호출. 클라이언트가 보낸 이름은 쓰지 않음 (가짜 동네 이름 방지)
+- 주소 검색: 카카오 주소 검색 → 결과 없으면 장소(키워드) 검색. 로그인 회원만 (무료 호출량 보호)
+- 저장 좌표는 소수점 셋째 자리(약 100m)로 반올림 (반경 검색 반복으로 집 위치를 좁혀 내는 것 방지). 응답에 좌표 없음
+- 좌표는 JPA 엔티티에 매핑하지 않고 `GeoPoint.toWkt()` + 네이티브 SQL로만 다룸 (JTS (경도, 위도) vs MySQL 4326 (위도, 경도) 축 혼동 차단)
+- 카카오 호출은 DB 트랜잭션 밖에서 먼저 끝내고 저장은 UPDATE 한 번. 타임아웃 연결 2초·응답 3초, 실패 시 503 `LOCATION_SERVICE_UNAVAILABLE`
+- 서비스 지역은 국내(위도 33.0~38.7, 경도 124.5~132.0)로 검증
 
 ## 5. API (MVP)
 | 메서드 | 경로 | 설명 | 권한 |
@@ -194,7 +203,9 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 | POST | /api/auth/logout | 로그아웃 (refresh 폐기, 쿠키 삭제) | 공개 |
 | GET | /api/users/me | 내 정보 | 회원 |
 | PATCH | /api/users/me | 닉네임 수정 | 회원 |
-| PUT | /api/users/me/location | 동네 좌표·이름·반경 저장 | 회원 |
+| PUT | /api/users/me/location | 동네 좌표·반경 저장 (좌표 생략 시 반경만), 이름은 서버가 조회 | 회원 |
+| GET | /api/locations/region | 좌표의 동네 이름 미리보기 (lat, lng) | 회원 |
+| GET | /api/locations/search | 주소·장소 검색 (query, 최대 5건) | 회원 |
 | DELETE | /api/users/me | 탈퇴 | 회원 |
 | POST | /api/uploads/presigned | S3 업로드 URL 발급 | 회원 |
 | POST | /api/group-buys | 공구 개설(DRAFT) + 개설자 결제 준비 → orderId | 회원 |
@@ -228,6 +239,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
   - 로그인 실패는 이메일 없음·비밀번호 틀림·탈퇴를 같은 오류로, 없는 이메일도 BCrypt 비교를 한 번 해서 응답 시간 차이를 줄임
   - 남은 일: 로그인 시도 횟수 제한(T18), 만료된 refresh 행 정리(T14 스케줄러)
 - 비밀 값(DB 비밀번호, JWT 키, 토스 시크릿 키, AWS 키)은 GitHub Secrets와 EC2 `.env`에만, 저장소에 커밋 금지
+- 외부 API 키(카카오 등)는 AWS Parameter Store `/banting/prod/*`(SecureString)에 콘솔로 직접 입력 → 배포 때 `deploy.sh`가 서버 `.env`로 반영. 로컬은 gitignore된 `backend/application-secret.yml`
 - 토스 시크릿 키는 서버에서만 사용
 - 상품 링크는 http/https만 허용
 - 화면과 API가 같은 CloudFront 주소라 CORS는 열지 않는다
