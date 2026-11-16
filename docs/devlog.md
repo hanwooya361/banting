@@ -2,6 +2,11 @@
 
 > 작업마다 무엇을, 왜 했는지 3줄. 최신이 위.
 
+## 2026-11-16 · T06 회원가입·로그인(JWT)
+- access는 JWT(Spring Security 리소스 서버, 메모리 보관), refresh는 HttpOnly·SameSite=Strict 쿠키 + DB 해시 저장으로 나눠 XSS로 토큰을 훔칠 수 없게 하고, 재발급마다 교체(rotation)·폐기 토큰 재사용 시 전체 로그아웃(탈취 탐지)을 넣음. 동시 재발급은 조건부 UPDATE로 하나만 성공시키고, 탐지 후 예외에도 폐기가 롤백되지 않게 noRollbackFor
+- 개발 중 React StrictMode가 효과를 두 번 실행해 refresh가 두 번 나가면 탈취로 오인돼 바로 로그아웃되는 문제를 미리 보고, 프론트에서 진행 중인 refresh를 공유하도록 함. 슬라이스 테스트에서 @ConfigurationPropertiesScan이 안 먹는 것, @Email이 공백 정리보다 먼저 도는 것도 테스트로 잡아 고침
+- 테스트 19개(가입·로그인·조회, 중복·검증, 만료·위조 토큰, rotation, 탈취 탐지, 로그아웃)와 헤드리스 브라우저로 가입→/me→새로고침 유지→로그아웃 흐름 확인. 운영 JWT 키는 서버에서 생성해 .env에만 둠. 다음은 T07
+
 ## 2026-11-16 · T05 ERD 확정, Flyway V1, DB 백업
 - ERD를 V1__init.sql로 확정: 10개 테이블, 공간 인덱스, FK, CHECK(정원 초과·금액·정산 합계). 결제창을 닫으면 영영 재참여 못 하는 문제를 발견해 만료·결제 실패 행은 재사용하도록 설계를 바꿈. 엔티티는 각 티켓에서 만들고 ddl-auto=validate로 어긋남을 기동 시점에 잡음
 - Testcontainers MySQL 8.4로 마이그레이션·제약을 테스트하다 MySQL CHECK 위반이 DataIntegrityViolationException이 아니라 UncategorizedSQLException으로 번역되는 것을 확인해 T13용으로 기록. 로컬은 compose(3310), 서버는 기존 .env 비밀번호로 연결해 새 비밀 값 없이 배포

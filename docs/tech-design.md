@@ -190,7 +190,8 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 | GET | /api/health | 헬스체크 | 공개 |
 | POST | /api/auth/signup | 회원가입 | 공개 |
 | POST | /api/auth/login | 로그인, access·refresh 토큰 | 공개 |
-| POST | /api/auth/refresh | 토큰 재발급 | 공개 |
+| POST | /api/auth/refresh | 토큰 재발급 (refresh 쿠키, rotation) | 공개 |
+| POST | /api/auth/logout | 로그아웃 (refresh 폐기, 쿠키 삭제) | 공개 |
 | GET | /api/users/me | 내 정보 | 회원 |
 | PATCH | /api/users/me | 닉네임 수정 | 회원 |
 | PUT | /api/users/me/location | 동네 좌표·이름·반경 저장 | 회원 |
@@ -219,7 +220,13 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 공통 응답 오류 형식: `{ "code": "GROUP_BUY_FULL", "message": "자리가 없어요" }`
 
 ## 6. 보안
-- 비밀번호 BCrypt, JWT access 30분 / refresh 14일
+- 비밀번호 BCrypt, JWT access 30분 / refresh 14일 (T06 확정)
+  - access: JWT(HS256), Spring Security OAuth2 Resource Server가 검증. sub = 회원 id, role 클레임 → ROLE_*. 프론트는 메모리에만 보관하고 Authorization 헤더로 전송
+  - refresh: 무작위 256비트 문자열을 **HttpOnly·Secure·SameSite=Strict·Path=/api/auth 쿠키**로만 주고받음 (JS가 읽을 수 없어 XSS로 탈취 불가). DB(`refresh_tokens`, V2)에는 SHA-256 해시만 저장
+  - rotation: 재발급마다 기존 토큰 폐기 후 새로 발급. 폐기는 조건부 UPDATE(`revoked_at IS NULL`)로 원자적으로 해서 동시 요청 중 하나만 성공. 폐기된 토큰이 다시 오면 탈취로 보고 그 회원의 refresh 전부 폐기(모든 기기 로그아웃). 이 폐기는 예외를 던져도 커밋되도록 `noRollbackFor`
+  - 프론트는 동시에 필요한 refresh를 한 요청으로 묶는다 (React StrictMode 이중 실행이나 여러 API의 동시 401이 "재사용"으로 오인되지 않게). 같은 브라우저의 여러 탭이 동시에 새로고침하면 오인될 수 있음 → 문제가 되면 짧은 유예 시간 도입 검토
+  - 로그인 실패는 이메일 없음·비밀번호 틀림·탈퇴를 같은 오류로, 없는 이메일도 BCrypt 비교를 한 번 해서 응답 시간 차이를 줄임
+  - 남은 일: 로그인 시도 횟수 제한(T18), 만료된 refresh 행 정리(T14 스케줄러)
 - 비밀 값(DB 비밀번호, JWT 키, 토스 시크릿 키, AWS 키)은 GitHub Secrets와 EC2 `.env`에만, 저장소에 커밋 금지
 - 토스 시크릿 키는 서버에서만 사용
 - 상품 링크는 http/https만 허용

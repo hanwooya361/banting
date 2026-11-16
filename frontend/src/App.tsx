@@ -1,31 +1,28 @@
-import { useEffect, useState } from 'react'
-
-type HealthStatus = 'checking' | 'UP' | 'DOWN'
+import { Route, Routes } from 'react-router'
+import { Layout } from './components/Layout'
+import { RequireAuth } from './components/RequireAuth'
+import { HomePage } from './pages/HomePage'
+import { LoginPage } from './pages/LoginPage'
+import { MePage } from './pages/MePage'
+import { SignupPage } from './pages/SignupPage'
 
 function App() {
-  const [health, setHealth] = useState<HealthStatus>('checking')
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-      .then((data: { status: string }) => setHealth(data.status === 'UP' ? 'UP' : 'DOWN'))
-      .catch(() => setHealth('DOWN'))
-  }, [])
-
-  const badge = {
-    checking: 'bg-gray-100 text-gray-600',
-    UP: 'bg-green-100 text-green-700',
-    DOWN: 'bg-red-100 text-red-700',
-  }[health]
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-4">
-      <h1 className="text-4xl font-bold text-gray-900">반띵</h1>
-      <p className="text-gray-600">동네 이웃과 대용량 상품을 반띵하는 공동구매</p>
-      <span className={`rounded-full px-3 py-1 text-sm font-medium ${badge}`}>
-        서버 상태: {health === 'checking' ? '확인 중' : health}
-      </span>
-    </main>
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<HomePage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="signup" element={<SignupPage />} />
+        <Route
+          path="me"
+          element={
+            <RequireAuth>
+              <MePage />
+            </RequireAuth>
+          }
+        />
+      </Route>
+    </Routes>
   )
 }
 
