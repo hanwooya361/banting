@@ -1,0 +1,7 @@
+# 운영(EC2): 같은 compose 네트워크의 banting-mysql 컨테이너
+# MYSQL_PASSWORD는 서버 /opt/banting/.env에서 env_file로 들어온다 (저장소에 없음)
+spring:
+  datasource:
+    url: jdbc:mysql://banting-mysql:3306/banting
+    username: banting
+    password: ${MYSQL_PASSWORD}

@@ -11,6 +11,8 @@ RUN ./gradlew bootJar --no-daemon -x test
 
 # 2단계: 실행 (JRE만, 빌드 도구·소스 없음)
 FROM eclipse-temurin:21-jre
+# 국내 전용 서비스라 시각은 한국 시간 기준 (LocalDateTime.now(), 스케줄러)
+ENV TZ=Asia/Seoul
 WORKDIR /app
 # root가 아닌 사용자로 실행 (컨테이너 탈출 시 피해 축소)
 RUN useradd --system --uid 1001 app

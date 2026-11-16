@@ -10,7 +10,7 @@
 |---|---|---|
 | Spring Boot | **8090** | 8080 (다른 프로젝트 기본값) |
 | Vite 개발 서버 | **5180** (strictPort) | 5173 (Vite 기본값) |
-| MySQL (로컬 Docker, T05부터) | **3310** | 3306·33060 (PC에 설치된 MySQL), 3307 (wms) |
+| MySQL (로컬 Docker, 루트 `compose.yaml`) | **3310** | 3306·33060 (PC에 설치된 MySQL), 3307 (wms) |
 | Postgres | 사용 안 함 | 5432 (aiops), 5433 (makchabyeol) |
 
 - compose 프로젝트 이름: `banting` (`name: banting`으로 고정)

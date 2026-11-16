@@ -1,6 +1,15 @@
 spring:
   application:
     name: banting
+  profiles:
+    # 아무 프로필도 지정하지 않으면 로컬 개발용. 서버는 .env의 SPRING_PROFILES_ACTIVE=prod
+    default: local
+  jpa:
+    # 스키마는 Flyway만 바꾼다. 엔티티와 테이블이 어긋나면 기동 시점에 실패시켜 바로 알게 함
+    hibernate:
+      ddl-auto: validate
+    # 컨트롤러·뷰까지 DB 세션을 열어 두지 않음 (지연 로딩 쿼리가 숨어서 나가는 것 방지)
+    open-in-view: false
 
 server:
   port: 8090  # 다른 프로젝트(8080)와 겹치지 않게. 포트 목록은 docs/infra.md
