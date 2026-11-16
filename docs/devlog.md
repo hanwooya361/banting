@@ -2,6 +2,11 @@
 
 > 작업마다 무엇을, 왜 했는지 3줄. 최신이 위.
 
+## 2026-11-16 · T03 CI (GitHub Actions, 브랜치 보호)
+- PR마다 backend(`./gradlew build`)와 frontend(`npm ci`→lint→build) job을 돌리는 ci.yml 추가. 리눅스 러너에서 막히지 않도록 gradlew에 실행 권한(100755)을 줌
+- main 보호 규칙으로 두 검사 통과·PR 필수, 관리자 우회 금지(enforce_admins). 경로 필터는 필수 검사가 영영 대기하는 문제가 있어 두 job 모두 항상 실행
+- 헬스체크 테스트를 일부러 깨뜨려 backend 실패 → PR BLOCKED·머지 거부를 확인하고 되돌림. 다음은 T04 배포
+
 ## 2026-11-14 · T02 Spring Boot·React 프로젝트 생성
 - 백엔드는 Spring Initializr로 생성(Boot 4.1.2, Java 21, Web·Validation·Lombok만). Initializr가 3.x를 더 이상 제공하지 않고 3.5 무료 지원도 끝나 4.x로 바꾸고 CLAUDE.md를 고침. JPA·Flyway·Security는 DB 없이 앱이 안 뜨는 문제를 피하려고 T05·T06에서 추가
 - `GET /api/health`(HealthController)와 MockMvc 테스트를 만들어 T03 CI와 T04 헬스체크가 쓸 대상을 준비
