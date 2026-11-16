@@ -21,6 +21,12 @@ banting:
     # 카카오 로컬 API REST 키. 비어 있으면 동네 설정·주소 검색이 503으로 응답(앱은 정상 기동)
     # local: backend/application-secret.yml(gitignore) / prod: Parameter Store → deploy.sh가 서버 .env에 반영
     rest-api-key: ${KAKAO_REST_API_KEY:}
+  images:
+    # 상품 사진 버킷 (비밀 아님). 업로드는 images/tmp/, 공개는 images/group-buys/ (CloudFront /images/*)
+    bucket: banting-images-150604516450
+    region: ap-southeast-2
+    # 응답 사진 주소 앞부분. 운영은 같은 CloudFront 주소라 비워 둠(/images/…)
+    public-base-url: ""
 
 server:
   port: 8090  # 다른 프로젝트(8080)와 겹치지 않게. 포트 목록은 docs/infra.md

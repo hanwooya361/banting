@@ -1,6 +1,9 @@
 import { Route, Routes } from 'react-router'
 import { Layout } from './components/Layout'
 import { RequireAuth } from './components/RequireAuth'
+import { GroupBuyDetailPage } from './pages/GroupBuyDetailPage'
+import { GroupBuyEditPage } from './pages/GroupBuyEditPage'
+import { GroupBuyNewPage } from './pages/GroupBuyNewPage'
 import { HomePage } from './pages/HomePage'
 import { LocationPage } from './pages/LocationPage'
 import { LoginPage } from './pages/LoginPage'
@@ -19,6 +22,23 @@ function App() {
           element={
             <RequireAuth>
               <MePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="group-buys/new"
+          element={
+            <RequireAuth>
+              <GroupBuyNewPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="group-buys/:id" element={<GroupBuyDetailPage />} />
+        <Route
+          path="group-buys/:id/edit"
+          element={
+            <RequireAuth>
+              <GroupBuyEditPage />
             </RequireAuth>
           }
         />

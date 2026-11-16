@@ -31,7 +31,25 @@ public enum ErrorCode {
     LOCATION_OUT_OF_SERVICE_AREA(HttpStatus.BAD_REQUEST, "국내 위치만 설정할 수 있어요"),
     LOCATION_REQUIRED(HttpStatus.BAD_REQUEST, "먼저 동네 위치를 골라 주세요"),
     REGION_NOT_FOUND(HttpStatus.BAD_REQUEST, "이 위치의 동네를 찾지 못했어요. 다른 곳을 골라 주세요"),
-    LOCATION_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "위치 서비스가 잠시 응답하지 않아요. 잠시 후 다시 시도해 주세요");
+    LOCATION_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "위치 서비스가 잠시 응답하지 않아요. 잠시 후 다시 시도해 주세요"),
+
+    // 공구
+    GROUP_BUY_NOT_FOUND(HttpStatus.NOT_FOUND, "공구를 찾을 수 없어요"),
+    NOT_GROUP_BUY_HOST(HttpStatus.FORBIDDEN, "개설자만 할 수 있어요"),
+    GROUP_BUY_HAS_PARTICIPANTS(HttpStatus.CONFLICT, "참여한 이웃이 있어서 바꾸거나 지울 수 없어요"),
+    GROUP_BUY_NOT_EDITABLE(HttpStatus.CONFLICT, "지금 상태에서는 공구를 바꿀 수 없어요"),
+    GROUP_BUY_NOT_DELETABLE(HttpStatus.CONFLICT, "결제가 끝난 공구는 지금 삭제할 수 없어요"),
+    INVALID_PRODUCT_URL(HttpStatus.BAD_REQUEST, "상품 링크는 http:// 또는 https://로 시작하는 주소여야 해요"),
+    INVALID_DEADLINE(HttpStatus.BAD_REQUEST, "마감은 1시간 뒤부터 14일 안으로 정해 주세요"),
+    DEADLINE_ONLY_EXTEND(HttpStatus.BAD_REQUEST, "마감은 늦추기만 할 수 있어요"),
+    INVALID_UNITS(HttpStatus.BAD_REQUEST, "수량 설정을 확인해 주세요. 개설자 몫을 빼고도 한 명 이상 참여할 자리가 있어야 해요"),
+    INVALID_PRICE(HttpStatus.BAD_REQUEST, "한 자리당 금액이 1원 이상이 되도록 총가나 수량을 조정해 주세요"),
+    INVALID_PICKUP_OPTION(HttpStatus.BAD_REQUEST, "수령 일정은 마감 이후 14일 안으로 1~3개 정해 주세요"),
+
+    // 사진
+    INVALID_IMAGE(HttpStatus.BAD_REQUEST, "사진을 다시 올려 주세요"),
+    UNSUPPORTED_IMAGE(HttpStatus.BAD_REQUEST, "jpg·png·webp 사진, 5MB 이하만 올릴 수 있어요"),
+    STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진 저장소가 잠시 응답하지 않아요. 잠시 후 다시 시도해 주세요");
 
     private final HttpStatus status;
     private final String message;
