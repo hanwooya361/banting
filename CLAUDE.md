@@ -33,17 +33,19 @@
 - 상태 변경은 정해진 전이만 허용 (도메인 엔티티 메서드에서 검증)
 - 외부 결제 호출과 DB 트랜잭션을 섞지 않는다. 실패 시 보상 처리(결제 취소)
 - 개인정보는 꼭 필요한 것만. 위치는 반경 계산용 좌표만 저장하고 화면에는 동네 이름만 보여줌
-- 비용: 월 고정비 최소 (EC2 1대 + RDS 1대 + S3·CloudFront, 계정의 프리티어·크레딧 범위 안에서)
+- 비용: AWS 무료 플랜(크레딧 100달러, 2027-05-16까지) 안에서 6개월을 버티게 설계. 모든 사용량이 크레딧에서 차감되므로 EC2 1대 + S3·CloudFront만 쓰고 RDS는 쓰지 않음. 무료 플랜이 끝나기 전에 유료 전환 여부 결정
 
 ## 기술 스택
 - 백엔드: Java 21, Spring Boot 4 (4.1.2, 2026-11-14 변경: Initializr에서 3.x 제공 종료), Spring Data JPA, Spring Security + JWT, Gradle. 기능별 패키지(user, groupbuy, participation, payment, pickup, settlement, inquiry, common, config)
-- DB: MySQL 8 + Flyway. 배포는 AWS RDS, 로컬은 Docker Compose MySQL, 테스트는 Testcontainers
+- DB: MySQL 8 + Flyway. 배포는 EC2 안 Docker MySQL(볼륨 + 정기 백업), 로컬은 Docker Compose MySQL, 테스트는 Testcontainers
 - 프론트: React (Vite) + TypeScript + Tailwind
 - 결제: 토스페이먼츠 결제위젯 테스트 키 / 파일: AWS S3 (presigned URL)
-- 배포 (2026-11-12 확정)
-  - 프론트: GitHub Actions 빌드 → S3 업로드 → CloudFront(HTTPS, 도메인) 캐시 무효화
-  - 백엔드: GitHub Actions(빌드·테스트) → Docker 이미지 → EC2 + Nginx(HTTPS, api 서브도메인)
-  - DB: AWS RDS MySQL (EC2 보안 그룹에서만 접근)
+- 배포 (2026-11-16 변경: AWS 새 가입 방식 무료 플랜 → 시드니 리전 고정, 도메인 없음)
+  - AWS 계정: Builder ID(Google 로그인) → 프로젝트 "Proof of Concept", 리전 ap-southeast-2(시드니) 고정
+  - 주소: 도메인을 사지 않고 CloudFront 기본 주소(xxxx.cloudfront.net) 하나만 사용 (HTTPS 기본 제공)
+  - CloudFront 경로 라우팅: `/*` → S3(React 빌드), `/api/*` → EC2(Spring). 주소가 하나라 CORS 불필요
+  - 프론트: GitHub Actions 빌드 → S3 업로드 → CloudFront 캐시 무효화
+  - 백엔드: GitHub Actions(빌드·테스트) → Docker 이미지 → EC2(Docker Compose: Spring + MySQL)
   - Python AI 서버(FastAPI)는 쓰지 않음
 - 운영: Sentry, GitHub Issues, k6
 
@@ -64,7 +66,7 @@
 
 ## 진행 상황
 - 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호)
-- 다음: T04 CD (프론트 S3+CloudFront, 백엔드 EC2+Nginx+HTTPS, RDS)
+- 다음: T04 CD (S3 + CloudFront 기본 주소, `/api/*`는 EC2로 라우팅, EC2에 Spring + MySQL Docker Compose)
 
 ## 실행 명령
 - 백엔드: `cd backend && gradlew.bat bootRun`, 확인 http://localhost:8080/api/health
