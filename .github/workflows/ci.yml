@@ -2,7 +2,7 @@ name: CI
 
 # PR: 테스트만 (main 브랜치 보호 규칙이 backend, frontend job 통과를 필수로 요구)
 # main push(= PR 머지): 테스트 → 바뀐 쪽만 배포
-# 수동 실행(workflow_dispatch): 테스트 → 양쪽 모두 배포
+# 수동 실행(workflow_dispatch): 테스트 → 양쪽 모두 배포. main에서 실행할 때만 배포 (다른 브랜치가 운영에 올라가거나 main 태그를 덮어쓰지 않게)
 on:
   pull_request:
     branches: [main]
@@ -112,6 +112,7 @@ jobs:
     # changes가 건너뛰어진 수동 실행에서도 돌도록 always() + 결과 직접 확인
     if: >-
       always() && needs.backend.result == 'success' && needs.frontend.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -160,6 +161,7 @@ jobs:
     needs: [backend, frontend, changes]
     if: >-
       always() && needs.backend.result == 'success' && needs.frontend.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
       (github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true')
     # EC2가 ARM(t4g)이라 ARM 러너에서 바로 빌드 (에뮬레이션보다 빠름, 공개 저장소 무료)
     runs-on: ubuntu-24.04-arm

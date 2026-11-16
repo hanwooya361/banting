@@ -13,7 +13,7 @@ echo "배포 시작: ${PREV_TAG:-없음} → ${NEW_TAG}"
 health() {
   # Spring 기동에 1분 안팎 걸리므로 최대 약 2분 대기
   for _ in $(seq 1 40); do
-    if curl -fsS http://localhost/api/health > /dev/null; then return 0; fi
+    if curl -fs http://localhost/api/health > /dev/null 2>&1; then return 0; fi
     sleep 3
   done
   return 1
