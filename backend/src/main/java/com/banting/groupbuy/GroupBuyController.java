@@ -36,6 +36,7 @@ public class GroupBuyController {
     /**
      * 공개 API. 기준 위치는 로그인했으면 저장된 내 동네, 아니면 서울시청 (좌표는 받지 않는다).
      * 예: GET /api/group-buys?radius=3000&category=FOOD&keyword=휴지&sort=LATEST&page=0
+     * demoArea=true면 내 동네 대신 체험 동네(서울시청, 예시 공구 포함) 기준.
      */
     @GetMapping
     public ListResponse list(@AuthenticationPrincipal Jwt jwt,
@@ -43,8 +44,9 @@ public class GroupBuyController {
                              @RequestParam(required = false) Category category,
                              @RequestParam(required = false) String keyword,
                              @RequestParam(defaultValue = "DEADLINE") GroupBuySort sort,
-                             @RequestParam(defaultValue = "0") int page) {
-        return groupBuyService.list(jwt == null ? null : userId(jwt), radius, category, keyword, sort, page);
+                             @RequestParam(defaultValue = "0") int page,
+                             @RequestParam(defaultValue = "false") boolean demoArea) {
+        return groupBuyService.list(jwt == null ? null : userId(jwt), radius, category, keyword, sort, page, demoArea);
     }
 
     /** 공개 API. 로그인했으면 내 공구 여부(mine)와 내 결제 금액을 함께 준다. */

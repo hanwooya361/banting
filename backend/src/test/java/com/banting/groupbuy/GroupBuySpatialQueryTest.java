@@ -175,18 +175,44 @@ class GroupBuySpatialQueryTest {
                 """, hostId, NOW.plusHours(1));
         jdbc.execute("ANALYZE TABLE group_buys");
 
-        Condition condition = condition(1000, null, null, GroupBuySort.DEADLINE, 21, 0);
-        List<Map<String, Object>> plan = namedJdbc.queryForList(
-                "EXPLAIN " + GroupBuySpatialQuery.sql(condition), GroupBuySpatialQuery.params(condition));
+        // demo_type 조건(실제만 / 실제+시드)이 붙어도 공간 인덱스를 고르는지 두 경우 모두 확인 (T09.5)
+        Condition realOnly = condition(1000, null, null, GroupBuySort.DEADLINE, 21, 0);
+        Condition withSeed = withSeed(realOnly);
+        for (Condition condition : List.of(realOnly, withSeed)) {
+            List<Map<String, Object>> plan = namedJdbc.queryForList(
+                    "EXPLAIN " + GroupBuySpatialQuery.sql(condition), GroupBuySpatialQuery.params(condition));
 
-        // 1행은 group_buys, 2행은 대표 사진 서브쿼리(group_buy_images)
-        assertThat(plan.get(0).get("table")).isEqualTo("g");
-        assertThat(plan.get(0).get("key")).isEqualTo("sp_group_buys_location");
+            // 1행은 group_buys, 2행은 대표 사진 서브쿼리(group_buy_images)
+            assertThat(plan.get(0).get("table")).isEqualTo("g");
+            assertThat(plan.get(0).get("key")).isEqualTo("sp_group_buys_location");
+        }
         // 결과도 그대로
-        assertThat(ids(query.search(condition))).containsExactly(east800m, north300m);
+        assertThat(ids(query.search(realOnly))).containsExactly(east800m, north300m);
+    }
+
+    // ───── 데모 공구 (T09.5) ─────
+
+    @Test
+    void 시드_공구는_포함하라고_할_때만_나오고_체험_공구는_어떤_경우에도_안_나온다() {
+        long seed = insert(37.5666, 126.9781, "OPEN", 1, "예시 공구", "LIVING", 1);
+        long trial = insert(37.5666, 126.9781, "OPEN", 1, "체험 공구", "LIVING", 1);
+        jdbc.update("UPDATE group_buys SET demo_type = 'SEED' WHERE id = ?", seed);
+        jdbc.update("UPDATE group_buys SET demo_type = 'TRIAL' WHERE id = ?", trial);
+
+        Condition realOnly = condition(1000, null, null, GroupBuySort.DEADLINE, 20, 0);
+        assertThat(ids(query.search(realOnly))).doesNotContain(seed, trial);
+        List<Row> withSeed = query.search(withSeed(realOnly));
+        assertThat(ids(withSeed)).contains(seed).doesNotContain(trial);
+        assertThat(withSeed.stream().filter(r -> r.id() == seed).findFirst().orElseThrow().demoType())
+                .isEqualTo(DemoType.SEED);
     }
 
     // ───── 헬퍼 ─────
+
+    private static Condition withSeed(Condition c) {
+        return new Condition(c.center(), c.radiusM(), c.category(), c.keyword(), c.sort(), c.now(), c.limit(),
+                c.offset(), true);
+    }
 
     private List<Row> search(int radiusM) {
         return query.search(condition(radiusM, null, null, GroupBuySort.DEADLINE, 20, 0));
@@ -194,7 +220,7 @@ class GroupBuySpatialQueryTest {
 
     private static Condition condition(int radiusM, Category category, String keyword, GroupBuySort sort,
                                        int limit, int offset) {
-        return new Condition(CITY_HALL, radiusM, category, keyword, sort, NOW, limit, offset);
+        return new Condition(CITY_HALL, radiusM, category, keyword, sort, NOW, limit, offset, false);
     }
 
     private static List<Long> ids(List<Row> rows) {

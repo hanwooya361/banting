@@ -74,6 +74,13 @@ export function GroupBuyDetailPage() {
         <h1 className="text-2xl font-bold">{g.title}</h1>
       </header>
 
+      {g.demo ? (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
+          <p className="font-medium">체험 동네의 예시 공구예요</p>
+          <p className="mt-1">실제로 참여하거나 결제할 수는 없어요. 반띵이 어떻게 보이는지 둘러보세요.</p>
+        </div>
+      ) : null}
+
       {g.status === 'DRAFT' && g.mine ? (
         <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
           <p className="font-medium text-orange-800">내 몫을 결제하면 공구가 공개돼요</p>
@@ -103,14 +110,17 @@ export function GroupBuyDetailPage() {
         </div>
       </section>
 
-      <a
-        href={g.productUrl}
-        target="_blank"
-        rel="noopener noreferrer nofollow"
-        className="rounded-lg border border-gray-300 py-2.5 text-center font-medium"
-      >
-        상품 보러 가기 ↗
-      </a>
+      {/* 예시 공구의 링크는 example.com이라 숨긴다 */}
+      {g.demo ? null : (
+        <a
+          href={g.productUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="rounded-lg border border-gray-300 py-2.5 text-center font-medium"
+        >
+          상품 보러 가기 ↗
+        </a>
+      )}
 
       {g.description ? <p className="whitespace-pre-line text-gray-800">{g.description}</p> : null}
 

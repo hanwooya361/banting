@@ -97,6 +97,11 @@ public class GroupBuy extends BaseTimeEntity {
     @Column(name = "fail_reason", length = 20)
     private FailReason failReason;
 
+    /** null = 실제 공구. 시드(SEED)는 DemoSeeder가 SQL로만 넣고, 일반 개설은 항상 null. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "demo_type", length = 10)
+    private DemoType demoType;
+
     /**
      * 개설자 동네 좌표. 회원 좌표를 그대로 복사한다 (GeoPoint.toWkt()와 같은 (위도 경도) WKT).
      * POINT 컬럼을 문자열로 다루되, 쓸 때 ST_PointFromText, 읽을 때 ST_AsText를 DB가 적용한다.

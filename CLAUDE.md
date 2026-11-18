@@ -36,7 +36,7 @@
 - 비용: AWS 무료 플랜(크레딧 100달러, 2027-05-16까지) 안에서 6개월을 버티게 설계. 모든 사용량이 크레딧에서 차감되므로 EC2 1대 + S3·CloudFront만 쓰고 RDS는 쓰지 않음. 무료 플랜이 끝나기 전에 유료 전환 여부 결정
 
 ## 기술 스택
-- 백엔드: Java 21, Spring Boot 4 (4.1.2, 2026-11-14 변경: Initializr에서 3.x 제공 종료), Spring Data JPA, Spring Security + JWT, Gradle. 기능별 패키지(user, groupbuy, participation, payment, pickup, settlement, inquiry, common, config)
+- 백엔드: Java 21, Spring Boot 4 (4.1.2, 2026-11-14 변경: Initializr에서 3.x 제공 종료), Spring Data JPA, Spring Security + JWT, Gradle. 기능별 패키지(user, groupbuy, participation, payment, pickup, settlement, inquiry, demo, common, config)
 - DB: MySQL 8 + Flyway. 배포는 EC2 안 Docker MySQL(볼륨 + 정기 백업), 로컬은 Docker Compose MySQL, 테스트는 Testcontainers
 - 프론트: React (Vite) + TypeScript + Tailwind
 - 결제: 토스페이먼츠 결제위젯 테스트 키 / 파일: AWS S3 (presigned URL)
@@ -68,8 +68,8 @@
 - 하루 끝: 내가 "오늘 끝"이라고 하면 devlog에 그날 요약(끝낸 티켓, 배포 횟수, 막힌 점, 내일 할 일)을 쓰고 `ec2-stop.ps1`로 서버를 끔
 
 ## 진행 상황
-- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호), T04 (CD: S3+CloudFront, EC2 자동 배포, 켜기/끄기 스크립트), T05 (ERD 확정, Flyway V1, DB 백업), T06 (회원가입·로그인 JWT, refresh 쿠키·rotation), T07 (동네 설정: 카카오 로컬 API, 반경 검색 쿼리), T10 (금액 계산, T08보다 먼저), T08 (공구 개설·수정·삭제, 사진 S3 presigned), T09 (공구 목록: 내 동네 반경·카테고리·검색·정렬)
-- 다음: T11 참여 = 결제 (토스 테스트)
+- 완료: T01 (폴더·문서 초안, GitHub 저장소 생성·첫 push), T02 (Spring Boot·React 프로젝트 생성, /api/health), T03 (CI: GitHub Actions, main 브랜치 보호), T04 (CD: S3+CloudFront, EC2 자동 배포, 켜기/끄기 스크립트), T05 (ERD 확정, Flyway V1, DB 백업), T06 (회원가입·로그인 JWT, refresh 쿠키·rotation), T07 (동네 설정: 카카오 로컬 API, 반경 검색 쿼리), T10 (금액 계산, T08보다 먼저), T08 (공구 개설·수정·삭제, 사진 S3 presigned), T09 (공구 목록: 내 동네 반경·카테고리·검색·정렬), T09.5 (시드 데이터: 체험 동네 예시 공구 8개)
+- 다음: T11 참여 = 결제 (토스 테스트). 체험 모드는 T16.5 (docs/tech-design.md "시드 데이터와 체험 모드")
 
 ## 실행 명령
 - 로컬 DB: 루트에서 `docker compose up -d` (MySQL 8.4, localhost:3310, banting/banting-local). 정리 `docker compose down`, 데이터까지 지우려면 `-v`

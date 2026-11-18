@@ -28,6 +28,7 @@ export type GroupBuyDetail = {
   host: { nickname: string }
   mine: boolean
   myAmount: number | null
+  demo: boolean // 체험 동네 예시 공구 (T09.5)
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -98,6 +99,7 @@ export type GroupBuyListItem = {
   deadlineAt: string
   createdAt: string
   thumbnailUrl: string | null
+  demo: boolean
 }
 
 // 기준 위치 좌표는 서버가 주지 않는다 (동네 이름만)
@@ -121,6 +123,7 @@ export type ListQuery = {
   category: Category | null
   keyword: string
   sort: GroupBuySort
+  demoArea: boolean // true면 내 동네 대신 체험 동네(서울시청, 예시 공구 포함)
 }
 
 export function listPath(query: ListQuery, page: number) {
@@ -128,6 +131,7 @@ export function listPath(query: ListQuery, page: number) {
   if (query.radius !== null) params.set('radius', String(query.radius))
   if (query.category) params.set('category', query.category)
   if (query.keyword.trim()) params.set('keyword', query.keyword.trim())
+  if (query.demoArea) params.set('demoArea', 'true')
   return `/api/group-buys?${params}`
 }
 

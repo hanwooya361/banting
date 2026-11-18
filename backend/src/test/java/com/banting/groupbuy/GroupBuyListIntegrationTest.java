@@ -150,7 +150,50 @@ class GroupBuyListIntegrationTest {
         assertThat(body).doesNotContain("location", "latitude", "longitude", "distance", "POINT");
     }
 
+    // ───── 시드(예시) 공구 (T09.5) ─────
+
+    @Test
+    void 기본_위치_목록에는_시드_공구가_예시로_섞여_나온다() throws Exception {
+        long seed = insertSeed();
+
+        mvc.perform(get("/api/group-buys"))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[?(@.id == %d)].demo".formatted(seed)).value(true))
+                .andExpect(jsonPath("$.items[?(@.id == %d)].demo".formatted(cityHallSoon)).value(false));
+    }
+
+    @Test
+    void 내_동네_목록에는_시드가_안_섞이고_체험_동네를_고르면_보인다() throws Exception {
+        long seed = insertSeed();
+        String token = signupAndLogin("cityhall@test.com", "시청주민");
+        setLocation("cityhall@test.com", 37.567, 126.978, "중구 명동", 1000);
+
+        mvc.perform(get("/api/group-buys").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(jsonPath("$.defaultLocation").value(false))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[?(@.id == %d)]".formatted(seed)).isEmpty());
+        mvc.perform(get("/api/group-buys").param("demoArea", "true")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(jsonPath("$.defaultLocation").value(true))
+                .andExpect(jsonPath("$.neighborhoodName").value("서울시청"))
+                .andExpect(jsonPath("$.items[?(@.id == %d)].demo".formatted(seed)).value(true));
+    }
+
+    @Test
+    void 상세에도_예시_공구_여부가_있다() throws Exception {
+        long seed = insertSeed();
+
+        mvc.perform(get("/api/group-buys/" + seed)).andExpect(jsonPath("$.demo").value(true));
+        mvc.perform(get("/api/group-buys/" + cityHallSoon)).andExpect(jsonPath("$.demo").value(false));
+    }
+
     // ───── 헬퍼 ─────
+
+    private long insertSeed() {
+        long id = insert(37.5667, 126.9782, "중구 명동", 2, "예시 공구");
+        jdbc.update("UPDATE group_buys SET demo_type = 'SEED' WHERE id = ?", id);
+        return id;
+    }
 
     private long insert(double lat, double lng, String neighborhood, int deadlineDays, String title) {
         jdbc.update("""

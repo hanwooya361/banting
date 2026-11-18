@@ -131,10 +131,14 @@ public class GroupBuyService {
      * 내 동네 반경 안의 모집 중 공구. 기준점은 화면이 보낸 좌표가 아니라 서버에 저장된 내 동네 좌표다
      * (좌표를 받으면 여러 지점에서 검색해 개설자 위치를 좁혀 낼 수 있음). 동네가 없으면 서울시청 기준.
      *
-     * @param radiusM 화면에서 반경 칩을 고른 값. null이면 저장된 반경(비로그인은 1km)
+     * <p>시드(예시) 공구는 기본 위치(서울시청) 기준일 때만 섞는다. 내 동네 목록에 가짜 공구가 섞이면 안 되므로,
+     * 내 동네가 비어 있으면 화면이 demoArea=true로 "체험 동네"를 따로 보여 준다 (T09.5).
+     *
+     * @param radiusM  화면에서 반경 칩을 고른 값. null이면 저장된 반경(비로그인은 1km)
+     * @param demoArea true면 내 동네가 있어도 체험 동네(서울시청) 기준
      */
     public ListResponse list(Long viewerId, Integer radiusM, Category category, String keyword,
-                             GroupBuySort sort, int page) {
+                             GroupBuySort sort, int page, boolean demoArea) {
         if (page < 0 || page > MAX_PAGE || (radiusM != null && !ALLOWED_RADII.contains(radiusM))) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
@@ -143,7 +147,8 @@ public class GroupBuyService {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
 
-        UserRepository.LocationView mine = viewerId == null ? null : userRepository.findLocation(viewerId).orElse(null);
+        UserRepository.LocationView mine = viewerId == null || demoArea
+                ? null : userRepository.findLocation(viewerId).orElse(null);
         GeoPoint center = mine == null ? DEFAULT_CENTER : GeoPoint.fromWkt(mine.getWkt());
         int radius = radiusM != null ? radiusM : mine == null ? DEFAULT_RADIUS_M : mine.getSearchRadiusM();
         String neighborhood = mine == null ? DEFAULT_NEIGHBORHOOD : mine.getNeighborhoodName();
@@ -152,7 +157,7 @@ public class GroupBuyService {
         List<GroupBuySpatialQuery.Row> rows = spatialQuery.search(new GroupBuySpatialQuery.Condition(
                 center, radius, category, trimmed == null || trimmed.isEmpty() ? null : trimmed,
                 sort == null ? GroupBuySort.DEADLINE : sort, LocalDateTime.now(clock),
-                PAGE_SIZE + 1, page * PAGE_SIZE));
+                PAGE_SIZE + 1, page * PAGE_SIZE, mine == null));
         boolean hasNext = rows.size() > PAGE_SIZE;
         List<ListItem> items = rows.stream().limit(PAGE_SIZE).map(this::toListItem).toList();
         return new ListResponse(neighborhood, radius, mine == null, items, page, hasNext);
@@ -163,7 +168,8 @@ public class GroupBuyService {
         return new ListItem(row.id(), row.title(), row.category(), row.priceType(), unitPrice, row.unitLabel(),
                 row.capacityUnits(), row.minUnitsPerPerson(), row.reservedUnits(), row.paidUnits(),
                 row.neighborhoodName(), row.deadlineAt(), row.createdAt(),
-                row.thumbnailKey() == null ? null : imageBaseUrl + "/" + row.thumbnailKey());
+                row.thumbnailKey() == null ? null : imageBaseUrl + "/" + row.thumbnailKey(),
+                row.demoType() != null);
     }
 
     // ───── 조회 ─────
@@ -194,7 +200,7 @@ public class GroupBuyService {
                         .map(o -> new GroupBuyDtos.PickupOptionView(o.getId(), o.getPickupAt(), o.getPlaceName()))
                         .toList(),
                 new GroupBuyDtos.HostView(host.getNickname(), host.getRole()),
-                mine, myAmount);
+                mine, myAmount, groupBuy.getDemoType() != null);
     }
 
     // ───── 수정 ─────
