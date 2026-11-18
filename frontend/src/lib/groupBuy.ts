@@ -1,4 +1,5 @@
 // 공구 타입, 표시용 라벨, 금액 미리보기 계산
+import type { ParticipationStatus } from './payment'
 
 export type Category = 'LIVING' | 'FOOD' | 'KITCHEN' | 'ETC'
 export type PriceType = 'EQUAL' | 'BY_QUANTITY'
@@ -29,6 +30,14 @@ export type GroupBuyDetail = {
   mine: boolean
   myAmount: number | null
   demo: boolean // 체험 동네 예시 공구 (T09.5)
+  // 보는 사람의 참여 (T11). 없으면 null
+  myParticipation: {
+    status: ParticipationStatus
+    units: number
+    amount: number
+    host: boolean
+    expiresAt: string
+  } | null
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {

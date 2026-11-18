@@ -8,6 +8,8 @@ import { HomePage } from './pages/HomePage'
 import { LandingPage } from './pages/LandingPage'
 import { LocationPage } from './pages/LocationPage'
 import { LoginPage } from './pages/LoginPage'
+import { CheckoutPage } from './pages/CheckoutPage'
+import { PaymentFailPage, PaymentSuccessPage } from './pages/PaymentResultPages'
 import { MePage } from './pages/MePage'
 import { SignupPage } from './pages/SignupPage'
 
@@ -45,6 +47,23 @@ function App() {
             </RequireAuth>
           }
         />
+        <Route
+          path="payments/checkout"
+          element={
+            <RequireAuth>
+              <CheckoutPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="payments/success"
+          element={
+            <RequireAuth>
+              <PaymentSuccessPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="payments/fail" element={<PaymentFailPage />} />
         <Route
           path="me/location"
           element={
