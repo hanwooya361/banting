@@ -21,6 +21,11 @@ banting:
     # 카카오 로컬 API REST 키. 비어 있으면 동네 설정·주소 검색이 503으로 응답(앱은 정상 기동)
     # local: backend/application-secret.yml(gitignore) / prod: Parameter Store → deploy.sh가 서버 .env에 반영
     rest-api-key: ${KAKAO_REST_API_KEY:}
+  toss:
+    # 토스페이먼츠 시크릿 키 (서버 전용). 비어 있으면 결제 승인만 503 (앱은 정상 기동)
+    # local: backend/application-secret.yml(gitignore) / prod: Parameter Store → deploy.sh가 서버 .env에 반영
+    secret-key: ${TOSS_SECRET_KEY:}
+    base-url: https://api.tosspayments.com
   images:
     # 상품 사진 버킷 (비밀 아님). 업로드는 images/tmp/, 공개는 images/group-buys/ (CloudFront /images/*)
     bucket: banting-images-150604516450

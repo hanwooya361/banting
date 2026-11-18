@@ -109,7 +109,7 @@ id, group_buy_id FK, url VARCHAR(500), sort_order INT
 | received_at | DATETIME(6) NULL | |
 | created_at, updated_at | DATETIME(6) | |
 
-제약: UNIQUE(group_buy_id, user_id) — 한 공구에 한 사람당 한 행. 결제 대기 만료·결제 실패로 CANCELED가 된 행은 같은 행을 PENDING_PAYMENT로 되돌려 재참여를 허용하고(결제창을 실수로 닫아도 다시 참여 가능), 결제 후 본인 취소(REFUNDED)는 재참여를 막는다 (2026-11-16 변경)
+제약: UNIQUE(group_buy_id, user_id) — 한 공구에 한 사람당 한 행. 결제 대기 만료로 CANCELED가 된 행은 같은 행을 PENDING_PAYMENT로 되돌려 재참여를 허용하고(결제창을 실수로 닫아도 다시 참여 가능), 결제 후 본인 취소(REFUNDED)는 재참여를 막는다 (2026-11-16 변경). 결제 거절은 참여를 CANCELED로 바꾸지 않고 결제 대기로 둬서 대기 시간 안에 다른 수단으로 다시 결제할 수 있다 (T11 결정)
 
 ### payments
 | 컬럼 | 타입 | 설명 |
@@ -151,7 +151,7 @@ id, group_buy_id UNIQUE, host_id, gross_amount, fee_rate DECIMAL(5,4), fee_amoun
 - 전이는 엔티티 메서드(`open()`, `confirm()`, `fail(reason)` 등)에서만 하고, 허용되지 않은 전이는 예외
 
 ### 참여 (participations.status)
-PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED → PENDING_PAYMENT (같은 공구 재참여, 행 재사용) · PAID → REFUNDED (마감 전 본인 취소, 공구 실패) · PAID → RECEIVED (수령 확인)
+PENDING_PAYMENT → PAID (승인) / CANCELED (만료, T14) · 결제 거절은 PENDING_PAYMENT 유지 · CANCELED → PENDING_PAYMENT (같은 공구 재참여, 행 재사용) · PAID → REFUNDED (마감 전 본인 취소, 공구 실패) · PAID → RECEIVED (수령 확인)
 
 ## 4. 핵심 로직
 
@@ -180,13 +180,23 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 3. 결제 성공 시 paid_units 증가, paid_units == capacity_units면 확정
 4. 비교 대상: 비관적 락(SELECT ... FOR UPDATE), Redis 분산 락. k6로 동시 100명 → 정원 초과 0건, 응답 시간 비교 후 devlog에 기록
 
-### 결제 승인 (T11)
-1. 프론트가 토스 위젯으로 결제 → successUrl로 paymentKey, orderId, amount 전달
-2. `POST /api/payments/confirm`: order_id로 payment 조회, 금액 일치 확인, 만료 확인
-3. 토스 승인 API 호출 (트랜잭션 밖)
-4. 성공 → 트랜잭션 안에서 payment DONE, participation PAID, paid_units 증가, 필요 시 공구 OPEN/CONFIRMED
-5. 4가 실패하면 토스 결제 취소 API로 보상하고 FAILED 기록
-6. 같은 orderId 재요청은 이미 DONE이면 그대로 성공 응답 (멱등)
+### 결제 승인 (T11 확정)
+1. 참여 `POST /api/group-buys/{id}/participations {units}`: 조건부 UPDATE로 자리 확보 → participation(PENDING_PAYMENT, 만료 10분) + payment(READY, 서버가 만든 orderId `bt-UUID`) → orderId·금액(서버 계산) 반환
+   - 개설자도 같은 API로 내 몫 결제를 시작한다 (개설 때 잡은 자리 그대로, 주문번호만 새로). 개설 API는 DRAFT까지만
+   - 결제 대기 중 다시 요청하면 같은 수량일 때 대기 시간만 새로 주고 새 주문번호 발급, 이전 READY 주문은 FAILED(SUPERSEDED)로 막아 탭 두 개로 두 번 결제되는 일을 막음. 수량이 다르면 거부
+   - 시드 공구 거부, 균등은 1자리, 수량별은 최소 수량~정원
+2. 프론트가 토스 위젯으로 결제 → successUrl로 paymentKey, orderId, amount 전달
+3. `POST /api/payments/confirm` 검증 (트랜잭션 밖, 실패 시 토스 호출 안 함 = 돈이 안 나감): 내 주문인지(남의 주문은 404), 금액 일치, 결제 대기·만료 전·마감 전
+4. 토스 승인 API 호출 (트랜잭션 밖, Idempotency-Key = `confirm-{orderId}`, 연결 3초·응답 30초)
+   - 4xx 거절 → payment FAILED(토스 코드 기록), 참여는 결제 대기 유지 → 다시 참여 요청으로 재결제
+   - 5xx·타임아웃(결과 모름) → 승인됐을 수 있으니 취소 API 호출 후 FAILED. "취소할 결제 없음" 거절은 정상으로 봄
+   - `ALREADY_PROCESSED_PAYMENT`(동시 중복 요청) → 이미 DONE이면 성공, 아니면 "처리 중"
+5. 성공 → 짧은 트랜잭션: 공구 → 참여 → 결제 순서로 행을 잠그고 payment DONE, participation PAID, paid_units 증가, 개설자면 DRAFT → OPEN, 정원이 차면 CONFIRMED
+6. 5가 실패하면(예: 그 사이 공구가 실패 처리됨) 토스 취소 API로 보상 → payment CANCELED(payment_key·사유 기록). 취소마저 실패하면 FAILED + "자동 취소 실패, 수동 확인 필요" + error 로그
+7. 같은 orderId 재요청은 이미 DONE이면 토스를 다시 부르지 않고 그대로 성공 (멱등)
+- 만료된 결제 대기 건의 자리 반환은 스케줄러(T14) 몫. 그 전까지는 만료된 대기 건이 자리를 차지할 수 있다 (같은 사람이 다시 요청하면 그 자리로 재결제)
+- 확정 시 수령 일정 선택(투표 1위)은 투표 티켓에서
+- 테스트: 가짜 토스 클라이언트로 성공·거절·응답 없음·반영 실패 보상·보상 실패·멱등·만료·금액 불일치, 실제 클라이언트는 로컬 HTTP 서버로 요청 형식 검증
 
 ### 스케줄러 (T14)
 - 1분마다: (1) expires_at 지난 PENDING_PAYMENT → CANCELED, reserved_units 반환 (2) deadline_at 지난 OPEN → FAILED + 환불 (3) 확정 후 3일 지난 PICKUP → COMPLETED + 정산
@@ -248,14 +258,14 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 | GET | /api/locations/search | 주소·장소 검색 (query, 최대 5건) | 회원 |
 | DELETE | /api/users/me | 탈퇴 | 회원 |
 | POST | /api/uploads/presigned | S3 업로드 URL 발급 (jpg·png·webp, 5MB) | 회원 |
-| POST | /api/group-buys | 공구 개설(DRAFT) + 개설자 자리 예약 (T08), 개설자 결제 준비 → orderId (T11) | 회원 |
+| POST | /api/group-buys | 공구 개설(DRAFT) + 개설자 자리 예약 (T08). 개설자 결제는 참여 API로 시작 (T11) | 회원 |
 | GET | /api/group-buys | 목록 (radius, category, keyword, sort=DEADLINE/LATEST, page, demoArea). 기준점은 로그인 시 저장된 내 동네, 아니면 서울시청 (2026-11-18 변경: lat·lng 받지 않음) | 공개 |
-| GET | /api/group-buys/{id} | 상세 (진행률, 수령 후보, 내 참여 여부) | 공개 |
+| GET | /api/group-buys/{id} | 상세 (진행률, 수령 후보, 내 참여 myParticipation: 상태·수량·금액·만료) | 공개 |
 | PATCH | /api/group-buys/{id} | 수정: 상품명·설명·카테고리·사진·마감 연장 (개설자 외 참여자 없을 때) | 개설자 |
 | DELETE | /api/group-buys/{id} | 삭제 (개설자 외 참여자 없을 때). T08은 DRAFT만, 결제된 공구는 개설자 몫 환불과 함께 T12 | 개설자 |
 | POST | /api/group-buys/{id}/cancel | 모집 중 취소 → 전원 환불 | 개설자 |
 | POST | /api/group-buys/{id}/purchased | "구매했어요" (CONFIRMED → PICKUP) | 개설자 |
-| POST | /api/group-buys/{id}/participations | 참여 (units) → orderId, amount | 회원 |
+| POST | /api/group-buys/{id}/participations | 참여 (units) → orderId, amount, orderName, expiresAt. 개설자는 내 몫 결제 시작 | 회원 |
 | DELETE | /api/participations/{id} | 마감 전 참여 취소·환불 | 본인 |
 | POST | /api/participations/{id}/receive | 수령 확인 | 본인 |
 | POST | /api/payments/confirm | 토스 결제 승인 | 회원 |
@@ -280,7 +290,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
   - 남은 일: 로그인 시도 횟수 제한(T18), 만료된 refresh 행 정리(T14 스케줄러)
 - 비밀 값(DB 비밀번호, JWT 키, 토스 시크릿 키, AWS 키)은 GitHub Secrets와 EC2 `.env`에만, 저장소에 커밋 금지
 - 외부 API 키(카카오 등)는 AWS Parameter Store `/banting/prod/*`(SecureString)에 콘솔로 직접 입력 → 배포 때 `deploy.sh`가 서버 `.env`로 반영. 로컬은 gitignore된 `backend/application-secret.yml`
-- 토스 시크릿 키는 서버에서만 사용
+- 토스 시크릿 키는 서버에서만 사용. 로컬 `application-secret.yml`, 운영 Parameter Store `/banting/prod/toss-secret-key` → `.env`의 `TOSS_SECRET_KEY`. 지금은 토스 문서 공개 테스트 키(결제위젯용), 내 테스트 키로 바꿀 땐 값만 교체. 클라이언트 키는 공개용이라 프론트 빌드 설정에 둔다
 - 상품 링크는 http/https만 허용
 - 화면과 API가 같은 CloudFront 주소라 CORS는 열지 않는다
 - AWS 키는 배포용 IAM 사용자에 최소 권한(이 버킷 업로드, 이 배포 무효화, 이 인스턴스 SSM 명령)만 부여. OIDC가 더 낫지만 무료 플랜 계정의 SCP가 OIDC 공급자 생성을 막아 차선책으로 씀 (docs/infra.md)

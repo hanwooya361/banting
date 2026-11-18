@@ -243,6 +243,50 @@ public class GroupBuy extends BaseTimeEntity {
         return status == GroupBuyStatus.DRAFT;
     }
 
+    public boolean isDemo() {
+        return demoType != null;
+    }
+
+    // ───── 참여·결제 (T11) ─────
+
+    /** 참여자가 자리를 잡을 수 있는 상태: 모집 중이고 마감 전. (실제 자리 확보는 조건부 UPDATE가 다시 확인) */
+    public void checkJoinable(LocalDateTime now) {
+        if (status != GroupBuyStatus.OPEN || !deadlineAt.isAfter(now)) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_OPEN);
+        }
+    }
+
+    /** 개설자가 내 몫을 결제할 수 있는 상태: 결제 전이고 마감 전. */
+    public void checkHostPayable(LocalDateTime now) {
+        if (status != GroupBuyStatus.DRAFT || !deadlineAt.isAfter(now)) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_OPEN);
+        }
+    }
+
+    /**
+     * 결제 승인 반영. 개설자 결제면 DRAFT → OPEN(목록 공개), 결제된 자리가 정원과 같아지면 OPEN → CONFIRMED.
+     * 허용되지 않은 상태면 예외 → 호출 쪽 트랜잭션이 롤백되고 토스 결제를 취소한다.
+     * (확정 시 수령 일정 선택은 투표 티켓 T15에서)
+     */
+    public void markPaid(int units, boolean byHost, LocalDateTime now) {
+        if (byHost) {
+            if (status != GroupBuyStatus.DRAFT) {
+                throw new IllegalStateException("개설자 결제는 DRAFT에서만: " + status);
+            }
+            status = GroupBuyStatus.OPEN;
+        } else if (status != GroupBuyStatus.OPEN) {
+            throw new IllegalStateException("참여자 결제는 OPEN에서만: " + status);
+        }
+        if (paidUnits + units > reservedUnits) {
+            throw new IllegalStateException("결제된 자리가 잡힌 자리보다 많아질 수 없음");
+        }
+        paidUnits += units;
+        if (paidUnits == capacityUnits) {
+            status = GroupBuyStatus.CONFIRMED;
+            confirmedAt = now;
+        }
+    }
+
     // ───── 검증 ─────
 
     static String validateProductUrl(String raw) {

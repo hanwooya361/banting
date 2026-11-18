@@ -14,7 +14,11 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 공구 참여 (한 공구에 한 사람당 한 행). 결제·취소 전이는 T11·T12에서 추가한다. */
+/**
+ * 공구 참여 (한 공구에 한 사람당 한 행).
+ * 상태 전이 (tech-design 3장): PENDING_PAYMENT → PAID, CANCELED → PENDING_PAYMENT(재참여, 같은 행 재사용).
+ * 취소·환불 전이는 T12, 만료 처리는 T14.
+ */
 @Entity
 @Table(name = "participations")
 @Getter
@@ -62,5 +66,47 @@ public class Participation extends BaseTimeEntity {
         p.status = ParticipationStatus.PENDING_PAYMENT;
         p.expiresAt = expiresAt;
         return p;
+    }
+
+    /** 참여자 몫: 자리를 잡고 결제 대기. */
+    public static Participation pending(Long groupBuyId, Long userId, int units, long amount, LocalDateTime expiresAt) {
+        Participation p = hostPending(groupBuyId, userId, units, amount, expiresAt);
+        p.host = false;
+        return p;
+    }
+
+    /** 결제 대기 중 다시 결제를 시작하면(거절 후 재시도, 결제창을 닫음 등) 대기 시간을 새로 준다. 자리는 그대로. */
+    public void renew(LocalDateTime expiresAt) {
+        require(ParticipationStatus.PENDING_PAYMENT);
+        this.expiresAt = expiresAt;
+    }
+
+    /** 만료·결제 실패로 취소된 행을 다시 결제 대기로 (UNIQUE(group_buy_id, user_id)라 새 행 대신 재사용). */
+    public void rejoin(int units, long amount, LocalDateTime expiresAt) {
+        require(ParticipationStatus.CANCELED);
+        this.units = units;
+        this.amount = amount;
+        this.expiresAt = expiresAt;
+        this.status = ParticipationStatus.PENDING_PAYMENT;
+    }
+
+    /** 결제 승인 반영. */
+    public void pay() {
+        require(ParticipationStatus.PENDING_PAYMENT);
+        this.status = ParticipationStatus.PAID;
+    }
+
+    public boolean isPending() {
+        return status == ParticipationStatus.PENDING_PAYMENT;
+    }
+
+    public boolean isExpired(LocalDateTime now) {
+        return !expiresAt.isAfter(now);
+    }
+
+    private void require(ParticipationStatus expected) {
+        if (status != expected) {
+            throw new IllegalStateException("참여 상태가 " + expected + "가 아닙니다: " + status);
+        }
     }
 }

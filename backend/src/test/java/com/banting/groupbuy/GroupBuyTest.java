@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 /** GroupBuy 도메인 규칙 단위 테스트 (DB 없이). */
 class GroupBuyTest {
@@ -121,5 +122,34 @@ class GroupBuyTest {
         assertThatThrownBy(() -> g.checkHost(2L)).isInstanceOfSatisfying(BusinessException.class,
                 e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.NOT_GROUP_BUY_HOST));
         g.checkHost(1L);
+    }
+
+    // ───── 결제 반영 (T11) ─────
+
+    @Test
+    void 개설자_결제가_반영되면_모집_중이_되고_마지막_자리가_결제되면_확정() {
+        GroupBuy g = GroupBuy.create(1L, equal(3, "https://e.com", NOW.plusDays(3)), WKT, "동", NOW);
+
+        g.markPaid(1, true, NOW);
+        assertThat(g.getStatus()).isEqualTo(GroupBuyStatus.OPEN);
+
+        ReflectionTestUtils.setField(g, "reservedUnits", 3);   // 두 이웃이 자리를 잡은 상태 (조건부 UPDATE가 하는 일)
+        g.markPaid(1, false, NOW);
+        assertThat(g.getStatus()).isEqualTo(GroupBuyStatus.OPEN);
+        g.markPaid(1, false, NOW.plusHours(1));
+        assertThat(g.getStatus()).isEqualTo(GroupBuyStatus.CONFIRMED);
+        assertThat(g.getConfirmedAt()).isEqualTo(NOW.plusHours(1));
+        assertThat(g.getPaidUnits()).isEqualTo(3);
+    }
+
+    @Test
+    void 정해진_상태에서만_결제를_반영하고_잡힌_자리보다_많이_결제될_수_없다() {
+        GroupBuy g = GroupBuy.create(1L, equal(3, "https://e.com", NOW.plusDays(3)), WKT, "동", NOW);
+        assertThatThrownBy(() -> g.markPaid(1, false, NOW)).isInstanceOf(IllegalStateException.class);   // DRAFT에 참여자 결제
+
+        g.markPaid(1, true, NOW);
+        assertThatThrownBy(() -> g.markPaid(1, true, NOW)).isInstanceOf(IllegalStateException.class);    // 개설자 두 번
+        assertThatThrownBy(() -> g.markPaid(1, false, NOW)).isInstanceOf(IllegalStateException.class);   // 자리 안 잡고 결제
+        assertThat(g.getPaidUnits()).isEqualTo(1);
     }
 }

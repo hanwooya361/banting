@@ -46,6 +46,24 @@ public enum ErrorCode {
     INVALID_PRICE(HttpStatus.BAD_REQUEST, "한 자리당 금액이 1원 이상이 되도록 총가나 수량을 조정해 주세요"),
     INVALID_PICKUP_OPTION(HttpStatus.BAD_REQUEST, "수령 일정은 마감 이후 14일 안으로 1~3개 정해 주세요"),
 
+    // 참여·결제 (T11)
+    GROUP_BUY_NOT_OPEN(HttpStatus.CONFLICT, "모집 중인 공구가 아니에요"),
+    GROUP_BUY_FULL(HttpStatus.CONFLICT, "자리가 없어요"),
+    DEMO_GROUP_BUY(HttpStatus.CONFLICT, "예시 공구라 참여할 수 없어요"),
+    INVALID_PARTICIPATION_UNITS(HttpStatus.BAD_REQUEST, "참여 수량을 확인해 주세요"),
+    ALREADY_PARTICIPATED(HttpStatus.CONFLICT, "이미 참여한 공구예요"),
+    CANNOT_REJOIN(HttpStatus.CONFLICT, "취소한 공구에는 다시 참여할 수 없어요"),
+    PARTICIPATION_PENDING(HttpStatus.CONFLICT, "결제를 기다리는 참여가 있어요. 같은 수량으로 결제를 이어 가 주세요"),
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 정보를 찾을 수 없어요"),
+    PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액이 맞지 않아요"),
+    PAYMENT_EXPIRED(HttpStatus.CONFLICT, "결제 시간이 지났어요. 다시 참여해 주세요"),
+    PAYMENT_NOT_PENDING(HttpStatus.CONFLICT, "이미 처리된 결제예요"),
+    PAYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "결제를 처리하고 있어요. 잠시 후 다시 확인해 주세요"),
+    PAYMENT_REJECTED(HttpStatus.BAD_REQUEST, "결제가 승인되지 않았어요. 결제 수단을 확인하고 다시 시도해 주세요"),
+    PAYMENT_CANCELED(HttpStatus.CONFLICT, "결제를 마무리하지 못해 바로 취소했어요. 돈은 나가지 않아요"),
+    PAYMENT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "결제 서비스가 잠시 응답하지 않아요. 결제됐다면 자동으로 취소돼요"),
+    PAYMENT_NEEDS_REVIEW(HttpStatus.INTERNAL_SERVER_ERROR, "결제 확인이 필요해요. 문의를 남겨 주시면 바로 확인할게요"),
+
     // 사진
     INVALID_IMAGE(HttpStatus.BAD_REQUEST, "사진을 다시 올려 주세요"),
     UNSUPPORTED_IMAGE(HttpStatus.BAD_REQUEST, "jpg·png·webp 사진, 5MB 이하만 올릴 수 있어요"),

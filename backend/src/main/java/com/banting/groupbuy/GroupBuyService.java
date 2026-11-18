@@ -200,7 +200,11 @@ public class GroupBuyService {
                         .map(o -> new GroupBuyDtos.PickupOptionView(o.getId(), o.getPickupAt(), o.getPlaceName()))
                         .toList(),
                 new GroupBuyDtos.HostView(host.getNickname(), host.getRole()),
-                mine, myAmount, groupBuy.getDemoType() != null);
+                mine, myAmount, groupBuy.isDemo(),
+                viewerId == null ? null : participationRepository.findByGroupBuyIdAndUserId(id, viewerId)
+                        .map(p -> new GroupBuyDtos.MyParticipation(p.getStatus(), p.getUnits(), p.getAmount(),
+                                p.isHost(), p.getExpiresAt()))
+                        .orElse(null));
     }
 
     // ───── 수정 ─────
