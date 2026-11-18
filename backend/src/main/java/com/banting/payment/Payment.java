@@ -104,6 +104,16 @@ public class Payment extends BaseTimeEntity {
         this.status = PaymentStatus.CANCELED;
     }
 
+    /** 승인된 결제를 환불(토스 전액 취소)했음. */
+    public void refunded(String reason, LocalDateTime canceledAt) {
+        if (status != PaymentStatus.DONE) {
+            throw new IllegalStateException("승인된 결제만 환불할 수 있습니다: " + status);
+        }
+        this.cancelReason = truncate(reason);
+        this.canceledAt = canceledAt;
+        this.status = PaymentStatus.CANCELED;
+    }
+
     private void requireReady() {
         if (status != PaymentStatus.READY) {
             throw new IllegalStateException("결제 대기 상태가 아닙니다: " + status);

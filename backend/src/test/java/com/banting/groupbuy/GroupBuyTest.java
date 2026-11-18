@@ -152,4 +152,36 @@ class GroupBuyTest {
         assertThatThrownBy(() -> g.markPaid(1, false, NOW)).isInstanceOf(IllegalStateException.class);   // 자리 안 잡고 결제
         assertThat(g.getPaidUnits()).isEqualTo(1);
     }
+
+    // ───── 취소 (T12) ─────
+
+    @Test
+    void 취소하면_자리를_돌려주고_잡힌_자리보다_많이_돌려줄_수_없다() {
+        GroupBuy g = GroupBuy.create(1L, equal(3, "https://e.com", NOW.plusDays(3)), WKT, "동", NOW);
+        g.markPaid(1, true, NOW);
+        ReflectionTestUtils.setField(g, "reservedUnits", 3);
+        g.markPaid(1, false, NOW);   // 결제 2, 대기 1
+
+        g.release(1, true);
+        assertThat(g.getReservedUnits()).isEqualTo(2);
+        assertThat(g.getPaidUnits()).isEqualTo(1);
+        g.release(1, false);
+        assertThat(g.getReservedUnits()).isEqualTo(1);
+        assertThatThrownBy(() -> g.release(2, false)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 확정_뒤나_마감_뒤에는_결제_취소를_할_수_없고_개설자_취소는_모집_중에만() {
+        GroupBuy g = GroupBuy.create(1L, equal(2, "https://e.com", NOW.plusDays(3)), WKT, "동", NOW);
+        assertThat(errorOf(g::cancelByHost)).isEqualTo(ErrorCode.GROUP_BUY_NOT_CANCELABLE);   // DRAFT는 삭제로
+
+        g.markPaid(1, true, NOW);
+        g.checkCancelable(NOW);
+        assertThat(errorOf(() -> g.checkCancelable(NOW.plusDays(3)))).isEqualTo(ErrorCode.PARTICIPATION_NOT_CANCELABLE);
+
+        g.cancelByHost();
+        assertThat(g.getStatus()).isEqualTo(GroupBuyStatus.FAILED);
+        assertThat(g.isCanceledByHost()).isTrue();
+        assertThat(errorOf(() -> g.checkCancelable(NOW))).isEqualTo(ErrorCode.PARTICIPATION_NOT_CANCELABLE);
+    }
 }

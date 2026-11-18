@@ -13,6 +13,9 @@ import com.banting.groupbuy.GroupBuyDtos.UpdateRequest;
 import com.banting.participation.Participation;
 import com.banting.participation.ParticipationRepository;
 import com.banting.participation.ParticipationStatus;
+import com.banting.payment.PaymentRepository;
+import com.banting.payment.PaymentStatus;
+import com.banting.payment.RefundService;
 import com.banting.pickup.PickupOption;
 import com.banting.pickup.PickupOptionRepository;
 import com.banting.user.User;
@@ -67,6 +70,8 @@ public class GroupBuyService {
     private final UserRepository userRepository;
     private final GroupBuySpatialQuery spatialQuery;
     private final ImageStorage imageStorage;
+    private final PaymentRepository paymentRepository;
+    private final RefundService refundService;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final String imageBaseUrl;
@@ -75,6 +80,7 @@ public class GroupBuyService {
                            ParticipationRepository participationRepository,
                            PickupOptionRepository pickupOptionRepository, UserRepository userRepository,
                            GroupBuySpatialQuery spatialQuery, ImageStorage imageStorage,
+                           PaymentRepository paymentRepository, RefundService refundService,
                            TransactionTemplate tx, Clock clock,
                            @Value("${banting.images.public-base-url:}") String imageBaseUrl) {
         this.groupBuyRepository = groupBuyRepository;
@@ -84,6 +90,8 @@ public class GroupBuyService {
         this.userRepository = userRepository;
         this.spatialQuery = spatialQuery;
         this.imageStorage = imageStorage;
+        this.paymentRepository = paymentRepository;
+        this.refundService = refundService;
         this.tx = tx;
         this.clock = clock;
         this.imageBaseUrl = imageBaseUrl;
@@ -202,9 +210,60 @@ public class GroupBuyService {
                 new GroupBuyDtos.HostView(host.getNickname(), host.getRole()),
                 mine, myAmount, groupBuy.isDemo(),
                 viewerId == null ? null : participationRepository.findByGroupBuyIdAndUserId(id, viewerId)
-                        .map(p -> new GroupBuyDtos.MyParticipation(p.getStatus(), p.getUnits(), p.getAmount(),
+                        .map(p -> new GroupBuyDtos.MyParticipation(p.getId(), p.getStatus(), p.getUnits(), p.getAmount(),
                                 p.isHost(), p.getExpiresAt()))
-                        .orElse(null));
+                        .orElse(null),
+                groupBuy.getFailReason());
+    }
+
+    // ───── 개설자 취소 (T12) ─────
+
+    /** refunded = 환불까지 끝난 참여 수, pendingRefunds = 토스 취소가 실패해 환불 대기로 남은 수. */
+    public record CancelResult(int refunded, int pendingRefunds) {
+    }
+
+    /**
+     * 모집 중 공구를 개설자가 취소 → FAILED(HOST_CANCELED), 개설자 포함 결제한 사람 전원 환불, 결제 대기는 취소.
+     * 한 트랜잭션에서 상태를 모두 바꾼 뒤(REFUND_PENDING), 토스 취소는 트랜잭션 밖에서 한 건씩.
+     * 일부가 실패하면 그 건만 환불 대기로 남고, 개설자가 다시 취소를 누르면 남은 건만 재시도한다.
+     */
+    public CancelResult cancel(Long userId, Long id) {
+        tx.executeWithoutResult(status -> {
+            GroupBuy groupBuy = groupBuyRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND));
+            groupBuy.checkHost(userId);
+            if (groupBuy.isCanceledByHost()) {
+                return;   // 이미 취소됨: 남은 환불만 재시도
+            }
+            groupBuy.cancelByHost();
+            for (Participation participation : participationRepository.findByGroupBuyId(id)) {
+                switch (participation.getStatus()) {
+                    case PAID -> participation.requestRefund();
+                    case PENDING_PAYMENT -> {
+                        participation.cancelPending();
+                        paymentRepository.findByParticipationIdAndStatus(participation.getId(), PaymentStatus.READY)
+                                .forEach(payment -> payment.fail(null, "개설자 취소"));
+                    }
+                    default -> {
+                    }
+                }
+            }
+        });
+
+        int refunded = 0;
+        int pending = 0;
+        for (Participation participation : participationRepository.findByGroupBuyId(id)) {
+            if (participation.getStatus() == ParticipationStatus.REFUNDED) {
+                refunded++;
+            } else if (participation.isRefundPending()) {
+                if (refundService.refund(participation.getId(), "개설자 공구 취소")) {
+                    refunded++;
+                } else {
+                    pending++;
+                }
+            }
+        }
+        return new CancelResult(refunded, pending);
     }
 
     // ───── 수정 ─────

@@ -19,6 +19,10 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
 
     Optional<Participation> findByGroupBuyIdAndUserId(Long groupBuyId, Long userId);
 
+    java.util.List<Participation> findByGroupBuyIdAndStatus(Long groupBuyId, ParticipationStatus status);
+
+    java.util.List<Participation> findByGroupBuyId(Long groupBuyId);
+
     /** 같은 사람의 참여 요청·결제 승인이 동시에 같은 행을 바꾸지 않게 잠근다 (늦게 온 쪽이 PAID를 덮어쓰는 일 방지). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Participation p WHERE p.groupBuyId = :groupBuyId AND p.userId = :userId")

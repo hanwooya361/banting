@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,5 +31,14 @@ public class ParticipationController {
                                                     @Valid @RequestBody ParticipateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(participationService.participate(Long.valueOf(jwt.getSubject()), id, request.units()));
+    }
+
+    /** 참여 취소. 환불까지 끝나면 200, 토스 취소가 실패해 환불 대기로 남으면 202(다시 요청하면 재시도). */
+    @DeleteMapping("/api/participations/{id}")
+    public ResponseEntity<ParticipationService.CancelResult> cancel(@AuthenticationPrincipal Jwt jwt,
+                                                                    @PathVariable Long id) {
+        ParticipationService.CancelResult result = participationService.cancel(Long.valueOf(jwt.getSubject()), id);
+        return ResponseEntity.status(result.status() == ParticipationStatus.REFUND_PENDING
+                ? HttpStatus.ACCEPTED : HttpStatus.OK).body(result);
     }
 }

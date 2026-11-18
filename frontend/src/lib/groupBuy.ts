@@ -32,12 +32,14 @@ export type GroupBuyDetail = {
   demo: boolean // 체험 동네 예시 공구 (T09.5)
   // 보는 사람의 참여 (T11). 없으면 null
   myParticipation: {
+    id: number
     status: ParticipationStatus
     units: number
     amount: number
     host: boolean
     expiresAt: string
   } | null
+  failReason: 'DEADLINE_UNMET' | 'HOST_CANCELED' | null
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -142,6 +144,11 @@ export function listPath(query: ListQuery, page: number) {
   if (query.keyword.trim()) params.set('keyword', query.keyword.trim())
   if (query.demoArea) params.set('demoArea', 'true')
   return `/api/group-buys?${params}`
+}
+
+// 마감 전인지 (참여 취소 버튼 노출용. 최종 판단은 서버가 한다)
+export function beforeDeadline(deadlineAt: string, now: number = Date.now()) {
+  return new Date(deadlineAt).getTime() > now
 }
 
 // 마감까지 남은 시간: "3일 남음" / "5시간 남음" / "12분 남음" / "마감"

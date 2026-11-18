@@ -104,7 +104,7 @@ id, group_buy_id FK, url VARCHAR(500), sort_order INT
 | is_host | BOOLEAN | 개설자 본인 몫 여부 |
 | units | INT | 차지한 정원 단위 (EQUAL은 1) |
 | amount | BIGINT | 결제 금액(원) |
-| status | VARCHAR(20) | PENDING_PAYMENT / PAID / CANCELED / REFUNDED / RECEIVED |
+| status | VARCHAR(20) | PENDING_PAYMENT / PAID / CANCELED / REFUND_PENDING / REFUNDED / RECEIVED |
 | expires_at | DATETIME(6) | 결제 대기 만료 시각 (생성 + 10분) |
 | received_at | DATETIME(6) NULL | |
 | created_at, updated_at | DATETIME(6) | |
@@ -151,7 +151,7 @@ id, group_buy_id UNIQUE, host_id, gross_amount, fee_rate DECIMAL(5,4), fee_amoun
 - 전이는 엔티티 메서드(`open()`, `confirm()`, `fail(reason)` 등)에서만 하고, 허용되지 않은 전이는 예외
 
 ### 참여 (participations.status)
-PENDING_PAYMENT → PAID (승인) / CANCELED (만료, T14) · 결제 거절은 PENDING_PAYMENT 유지 · CANCELED → PENDING_PAYMENT (같은 공구 재참여, 행 재사용) · PAID → REFUNDED (마감 전 본인 취소, 공구 실패) · PAID → RECEIVED (수령 확인)
+PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취소 T12) · 결제 거절은 PENDING_PAYMENT 유지 · PAID → REFUND_PENDING → REFUNDED (마감 전 본인 취소, 개설자 취소, 공구 실패) · CANCELED → PENDING_PAYMENT (같은 공구 재참여, 행 재사용) · PAID → REFUNDED (마감 전 본인 취소, 공구 실패) · PAID → RECEIVED (수령 확인)
 
 ## 4. 핵심 로직
 
@@ -197,6 +197,15 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료, T14) · 결제 거절은 P
 - 만료된 결제 대기 건의 자리 반환은 스케줄러(T14) 몫. 그 전까지는 만료된 대기 건이 자리를 차지할 수 있다 (같은 사람이 다시 요청하면 그 자리로 재결제)
 - 확정 시 수령 일정 선택(투표 1위)은 투표 티켓에서
 - 테스트: 가짜 토스 클라이언트로 성공·거절·응답 없음·반영 실패 보상·보상 실패·멱등·만료·금액 불일치, 실제 클라이언트는 로컬 HTTP 서버로 요청 형식 검증
+
+### 참여 취소·환불 (T12 확정)
+- 참여자 취소 `DELETE /api/participations/{id}`: 모집 중·마감 전만 (확정 뒤엔 개설자가 살 수 있는 상태라 불가). 개설자는 참여 취소 대신 공구 취소
+  - 결제 전(PENDING_PAYMENT): 토스 호출 없이 CANCELED, 자리 반환, 쓰던 READY 주문은 FAILED로 막음. 같은 공구 재참여 가능
+  - 결제 후(PAID): ① 짧은 트랜잭션(공구 → 참여 잠금): 참여 REFUND_PENDING, reserved·paid 반환 ② 토스 취소(트랜잭션 밖, Idempotency-Key `cancel-{orderId}`) ③ 짧은 트랜잭션: 참여 REFUNDED, 결제 CANCELED
+  - ②가 실패하면 REFUND_PENDING으로 남고 202 응답. 같은 취소를 다시 하면 ②부터 재시도, T14 스케줄러가 남은 건을 자동 재시도. 토스 `ALREADY_CANCELED_PAYMENT`는 이미 환불된 것으로 보고 기록만 마무리
+  - 자리를 ②보다 먼저 돌려주는 이유: 나가겠다는 사람의 자리는 바로 다른 이웃이 쓸 수 있어야 하고, 돌려줄 돈은 REFUND_PENDING 기록으로 남아 반드시 처리된다. 반대로(토스 먼저) 하면 환불 후 DB 반영이 실패할 때 돈 안 낸 사람이 자리를 차지하고 바로잡을 기록도 없다
+- 개설자 취소 `POST /api/group-buys/{id}/cancel`: 모집 중만 → FAILED(HOST_CANCELED). 한 트랜잭션에서 PAID는 전부 REFUND_PENDING, 결제 대기는 CANCELED → 토스 취소는 한 건씩. 일부 실패 시 202 + 남은 수, 다시 요청하면 남은 건만 재시도. 무산된 공구의 reserved·paid는 기록으로 그대로 둔다
+- 환불 한 건 처리는 `RefundService.refund(participationId)` 하나로 모아 T14(마감 실패 환불, 재시도)도 같은 경로를 쓴다
 
 ### 스케줄러 (T14)
 - 1분마다: (1) expires_at 지난 PENDING_PAYMENT → CANCELED, reserved_units 반환 (2) deadline_at 지난 OPEN → FAILED + 환불 (3) 확정 후 3일 지난 PICKUP → COMPLETED + 정산
@@ -263,10 +272,10 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료, T14) · 결제 거절은 P
 | GET | /api/group-buys/{id} | 상세 (진행률, 수령 후보, 내 참여 myParticipation: 상태·수량·금액·만료) | 공개 |
 | PATCH | /api/group-buys/{id} | 수정: 상품명·설명·카테고리·사진·마감 연장 (개설자 외 참여자 없을 때) | 개설자 |
 | DELETE | /api/group-buys/{id} | 삭제 (개설자 외 참여자 없을 때). T08은 DRAFT만, 결제된 공구는 개설자 몫 환불과 함께 T12 | 개설자 |
-| POST | /api/group-buys/{id}/cancel | 모집 중 취소 → 전원 환불 | 개설자 |
+| POST | /api/group-buys/{id}/cancel | 모집 중 취소 → 무산, 전원 환불 → {refunded, pendingRefunds}. 일부 대기면 202 (T12) | 개설자 |
 | POST | /api/group-buys/{id}/purchased | "구매했어요" (CONFIRMED → PICKUP) | 개설자 |
 | POST | /api/group-buys/{id}/participations | 참여 (units) → orderId, amount, orderName, expiresAt. 개설자는 내 몫 결제 시작 | 회원 |
-| DELETE | /api/participations/{id} | 마감 전 참여 취소·환불 | 본인 |
+| DELETE | /api/participations/{id} | 마감 전 참여 취소·환불 → {status, refundAmount}. 환불 대기로 남으면 202 (T12) | 본인 |
 | POST | /api/participations/{id}/receive | 수령 확인 | 본인 |
 | POST | /api/payments/confirm | 토스 결제 승인 | 회원 |
 | POST | /api/group-buys/{id}/pickup-votes | 수령 후보 투표 (optionId) | 참여자 |

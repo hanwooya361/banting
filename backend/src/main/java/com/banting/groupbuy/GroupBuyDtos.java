@@ -93,11 +93,12 @@ public final class GroupBuyDtos {
             boolean mine,
             Long myAmount,
             boolean demo,
-            MyParticipation myParticipation) {
+            MyParticipation myParticipation,
+            GroupBuy.FailReason failReason) {
     }
 
     /** 보는 사람의 참여 (없으면 null). 결제 대기면 expiresAt까지 결제를 이어 갈 수 있다. */
-    public record MyParticipation(com.banting.participation.ParticipationStatus status, int units, long amount,
+    public record MyParticipation(Long id, com.banting.participation.ParticipationStatus status, int units, long amount,
                                   boolean host, LocalDateTime expiresAt) {
     }
 

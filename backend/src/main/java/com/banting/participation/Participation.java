@@ -17,7 +17,8 @@ import lombok.NoArgsConstructor;
 /**
  * 공구 참여 (한 공구에 한 사람당 한 행).
  * 상태 전이 (tech-design 3장): PENDING_PAYMENT → PAID, CANCELED → PENDING_PAYMENT(재참여, 같은 행 재사용).
- * 취소·환불 전이는 T12, 만료 처리는 T14.
+ * 취소·환불 (T12): PENDING_PAYMENT → CANCELED(결제 전 취소), PAID → REFUND_PENDING → REFUNDED.
+ * 만료 처리는 T14.
  */
 @Entity
 @Table(name = "participations")
@@ -94,6 +95,27 @@ public class Participation extends BaseTimeEntity {
     public void pay() {
         require(ParticipationStatus.PENDING_PAYMENT);
         this.status = ParticipationStatus.PAID;
+    }
+
+    /** 결제 전 취소: 돈이 오가지 않았으니 바로 CANCELED (같은 공구에 다시 참여 가능). */
+    public void cancelPending() {
+        require(ParticipationStatus.PENDING_PAYMENT);
+        this.status = ParticipationStatus.CANCELED;
+    }
+
+    /** 결제 후 취소 시작: 자리는 호출 쪽이 바로 반환하고, 토스 취소가 끝날 때까지 환불 대기. */
+    public void requestRefund() {
+        require(ParticipationStatus.PAID);
+        this.status = ParticipationStatus.REFUND_PENDING;
+    }
+
+    public void refunded() {
+        require(ParticipationStatus.REFUND_PENDING);
+        this.status = ParticipationStatus.REFUNDED;
+    }
+
+    public boolean isRefundPending() {
+        return status == ParticipationStatus.REFUND_PENDING;
     }
 
     public boolean isPending() {
