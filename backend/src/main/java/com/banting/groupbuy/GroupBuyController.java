@@ -2,6 +2,7 @@ package com.banting.groupbuy;
 
 import com.banting.groupbuy.GroupBuyDtos.CreateRequest;
 import com.banting.groupbuy.GroupBuyDtos.Detail;
+import com.banting.groupbuy.GroupBuyDtos.ListResponse;
 import com.banting.groupbuy.GroupBuyDtos.UpdateRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -29,6 +31,20 @@ public class GroupBuyController {
     @PostMapping
     public ResponseEntity<Detail> create(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody CreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(groupBuyService.create(userId(jwt), request));
+    }
+
+    /**
+     * 공개 API. 기준 위치는 로그인했으면 저장된 내 동네, 아니면 서울시청 (좌표는 받지 않는다).
+     * 예: GET /api/group-buys?radius=3000&category=FOOD&keyword=휴지&sort=LATEST&page=0
+     */
+    @GetMapping
+    public ListResponse list(@AuthenticationPrincipal Jwt jwt,
+                             @RequestParam(required = false) Integer radius,
+                             @RequestParam(required = false) Category category,
+                             @RequestParam(required = false) String keyword,
+                             @RequestParam(defaultValue = "DEADLINE") GroupBuySort sort,
+                             @RequestParam(defaultValue = "0") int page) {
+        return groupBuyService.list(jwt == null ? null : userId(jwt), radius, category, keyword, sort, page);
     }
 
     /** 공개 API. 로그인했으면 내 공구 여부(mine)와 내 결제 금액을 함께 준다. */

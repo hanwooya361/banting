@@ -94,6 +94,39 @@ public final class GroupBuyDtos {
             Long myAmount) {
     }
 
+    /**
+     * 목록 응답 (T09). 기준 위치의 좌표는 주지 않고 동네 이름만 준다.
+     *
+     * @param neighborhoodName 검색 기준 동네 이름. 동네 설정 전·비로그인이면 기본 위치 이름
+     * @param defaultLocation  내 동네가 아니라 기본 위치(서울시청) 기준인지. 화면이 "내 동네 설정하기"를 띄우는 데 씀
+     */
+    public record ListResponse(
+            String neighborhoodName,
+            int radiusM,
+            boolean defaultLocation,
+            List<ListItem> items,
+            int page,
+            boolean hasNext) {
+    }
+
+    /** 목록 카드. 남은 자리 = capacityUnits − reservedUnits (결제 대기 중인 자리도 찬 것으로 본다). */
+    public record ListItem(
+            Long id,
+            String title,
+            Category category,
+            PriceType priceType,
+            long unitPrice,
+            String unitLabel,
+            int capacityUnits,
+            int minUnitsPerPerson,
+            int reservedUnits,
+            int paidUnits,
+            String neighborhoodName,
+            LocalDateTime deadlineAt,
+            LocalDateTime createdAt,
+            String thumbnailUrl) {
+    }
+
     /** key는 수정할 때 기존 사진을 유지하려고 돌려보낼 값, url은 화면 표시용. */
     public record Image(String key, String url) {
     }

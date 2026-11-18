@@ -2,9 +2,12 @@ package com.banting.groupbuy;
 
 import com.banting.common.BusinessException;
 import com.banting.common.ErrorCode;
+import com.banting.common.geo.GeoPoint;
 import com.banting.common.storage.ImageStorage;
 import com.banting.groupbuy.GroupBuyDtos.CreateRequest;
 import com.banting.groupbuy.GroupBuyDtos.Detail;
+import com.banting.groupbuy.GroupBuyDtos.ListItem;
+import com.banting.groupbuy.GroupBuyDtos.ListResponse;
 import com.banting.groupbuy.GroupBuyDtos.PickupOptionRequest;
 import com.banting.groupbuy.GroupBuyDtos.UpdateRequest;
 import com.banting.participation.Participation;
@@ -32,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * 공구 개설·조회·수정·삭제 (T08).
+ * 공구 개설·조회·수정·삭제 (T08), 목록 (T09).
  *
  * <p>트랜잭션 경계: S3 같은 외부 호출은 트랜잭션 밖에서 먼저 끝내고, DB 변경은 TransactionTemplate 안의
  * 짧은 작업 하나로 묶는다. DB 작업이 실패하면 먼저 복사해 둔 사진을 지워 되돌린다(보상).
@@ -48,11 +51,21 @@ public class GroupBuyService {
             EnumSet.of(ParticipationStatus.PENDING_PAYMENT, ParticipationStatus.PAID);
     private static final Pattern IMAGE_FILE = Pattern.compile("[0-9a-f\\-]{36}\\.(jpg|png|webp)");
 
+    // 목록: 동네 설정 전·비로그인은 서울시청 기준 (screen-design 흐름 1)
+    static final GeoPoint DEFAULT_CENTER = new GeoPoint(37.5665, 126.9780);
+    static final String DEFAULT_NEIGHBORHOOD = "서울시청";
+    static final int DEFAULT_RADIUS_M = 1000;
+    static final Set<Integer> ALLOWED_RADII = Set.of(500, 1000, 3000);
+    static final int PAGE_SIZE = 20;
+    private static final int MAX_PAGE = 500;
+    private static final int MAX_KEYWORD_LENGTH = 50;
+
     private final GroupBuyRepository groupBuyRepository;
     private final GroupBuyImageRepository imageRepository;
     private final ParticipationRepository participationRepository;
     private final PickupOptionRepository pickupOptionRepository;
     private final UserRepository userRepository;
+    private final GroupBuySpatialQuery spatialQuery;
     private final ImageStorage imageStorage;
     private final TransactionTemplate tx;
     private final Clock clock;
@@ -61,13 +74,15 @@ public class GroupBuyService {
     public GroupBuyService(GroupBuyRepository groupBuyRepository, GroupBuyImageRepository imageRepository,
                            ParticipationRepository participationRepository,
                            PickupOptionRepository pickupOptionRepository, UserRepository userRepository,
-                           ImageStorage imageStorage, TransactionTemplate tx, Clock clock,
+                           GroupBuySpatialQuery spatialQuery, ImageStorage imageStorage,
+                           TransactionTemplate tx, Clock clock,
                            @Value("${banting.images.public-base-url:}") String imageBaseUrl) {
         this.groupBuyRepository = groupBuyRepository;
         this.imageRepository = imageRepository;
         this.participationRepository = participationRepository;
         this.pickupOptionRepository = pickupOptionRepository;
         this.userRepository = userRepository;
+        this.spatialQuery = spatialQuery;
         this.imageStorage = imageStorage;
         this.tx = tx;
         this.clock = clock;
@@ -108,6 +123,47 @@ public class GroupBuyService {
             deleteQuietly(published);   // 보상: DB 저장이 실패하면 복사한 사진 정리
             throw e;
         }
+    }
+
+    // ───── 목록 (T09) ─────
+
+    /**
+     * 내 동네 반경 안의 모집 중 공구. 기준점은 화면이 보낸 좌표가 아니라 서버에 저장된 내 동네 좌표다
+     * (좌표를 받으면 여러 지점에서 검색해 개설자 위치를 좁혀 낼 수 있음). 동네가 없으면 서울시청 기준.
+     *
+     * @param radiusM 화면에서 반경 칩을 고른 값. null이면 저장된 반경(비로그인은 1km)
+     */
+    public ListResponse list(Long viewerId, Integer radiusM, Category category, String keyword,
+                             GroupBuySort sort, int page) {
+        if (page < 0 || page > MAX_PAGE || (radiusM != null && !ALLOWED_RADII.contains(radiusM))) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        String trimmed = keyword == null ? null : keyword.strip();
+        if (trimmed != null && trimmed.length() > MAX_KEYWORD_LENGTH) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        UserRepository.LocationView mine = viewerId == null ? null : userRepository.findLocation(viewerId).orElse(null);
+        GeoPoint center = mine == null ? DEFAULT_CENTER : GeoPoint.fromWkt(mine.getWkt());
+        int radius = radiusM != null ? radiusM : mine == null ? DEFAULT_RADIUS_M : mine.getSearchRadiusM();
+        String neighborhood = mine == null ? DEFAULT_NEIGHBORHOOD : mine.getNeighborhoodName();
+
+        // 한 개 더 가져와서 다음 페이지가 있는지 판단 (COUNT 쿼리 없이)
+        List<GroupBuySpatialQuery.Row> rows = spatialQuery.search(new GroupBuySpatialQuery.Condition(
+                center, radius, category, trimmed == null || trimmed.isEmpty() ? null : trimmed,
+                sort == null ? GroupBuySort.DEADLINE : sort, LocalDateTime.now(clock),
+                PAGE_SIZE + 1, page * PAGE_SIZE));
+        boolean hasNext = rows.size() > PAGE_SIZE;
+        List<ListItem> items = rows.stream().limit(PAGE_SIZE).map(this::toListItem).toList();
+        return new ListResponse(neighborhood, radius, mine == null, items, page, hasNext);
+    }
+
+    private ListItem toListItem(GroupBuySpatialQuery.Row row) {
+        long unitPrice = Pricing.of(row.priceType(), row.totalPrice(), row.capacityUnits()).unitPrice();
+        return new ListItem(row.id(), row.title(), row.category(), row.priceType(), unitPrice, row.unitLabel(),
+                row.capacityUnits(), row.minUnitsPerPerson(), row.reservedUnits(), row.paidUnits(),
+                row.neighborhoodName(), row.deadlineAt(), row.createdAt(),
+                row.thumbnailKey() == null ? null : imageBaseUrl + "/" + row.thumbnailKey());
     }
 
     // ───── 조회 ─────

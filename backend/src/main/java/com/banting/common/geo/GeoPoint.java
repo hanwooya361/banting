@@ -36,6 +36,18 @@ public record GeoPoint(double latitude, double longitude) {
         return new GeoPoint(round(latitude), round(longitude));
     }
 
+    /** DB에서 읽은 WKT("POINT(위도 경도)", ST_AsText 결과)를 다시 좌표로. toWkt()의 반대. */
+    public static GeoPoint fromWkt(String wkt) {
+        if (wkt == null || !wkt.startsWith("POINT(") || !wkt.endsWith(")")) {
+            throw new IllegalArgumentException("POINT WKT가 아닙니다: " + wkt);
+        }
+        String[] parts = wkt.substring("POINT(".length(), wkt.length() - 1).trim().split("\\s+");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException("POINT WKT가 아닙니다: " + wkt);
+        }
+        return new GeoPoint(Double.parseDouble(parts[0]), Double.parseDouble(parts[1]));
+    }
+
     /** MySQL SRID 4326용 WKT. 순서는 (위도 경도). */
     public String toWkt() {
         return "POINT(" + plain(latitude) + " " + plain(longitude) + ")";
