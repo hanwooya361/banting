@@ -43,7 +43,8 @@ public record Pricing(PriceType type, long totalPrice, int capacityUnits, long u
         return of(PriceType.BY_QUANTITY, totalPrice, totalQuantity);
     }
 
-    private static Pricing of(PriceType type, long totalPrice, int capacityUnits) {
+    /** 이미 검증된 공구(DB 행)의 금액을 다시 계산할 때. 새 공구는 equal / byQuantity로 검증하며 만든다. */
+    static Pricing of(PriceType type, long totalPrice, int capacityUnits) {
         if (totalPrice <= 0) {
             throw new IllegalArgumentException("총가는 1원 이상이어야 합니다");
         }

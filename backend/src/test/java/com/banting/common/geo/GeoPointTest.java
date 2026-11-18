@@ -38,6 +38,19 @@ class GeoPointTest {
     }
 
     @Test
+    void DB에서_읽은_WKT를_같은_축_순서로_되돌린다() {
+        GeoPoint point = GeoPoint.fromWkt("POINT(37.567 126.978)");
+
+        assertThat(point.latitude()).isEqualTo(37.567);
+        assertThat(point.longitude()).isEqualTo(126.978);
+        assertThat(GeoPoint.fromWkt(point.toWkt())).isEqualTo(point);
+        assertThatThrownBy(() -> GeoPoint.fromWkt("LINESTRING(1 2, 3 4)"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> GeoPoint.fromWkt("POINT(37.567)"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void 제주와_독도도_서비스_지역이다() {
         new GeoPoint(33.2, 126.27);      // 제주 마라도 부근
         new GeoPoint(37.24, 131.87);     // 독도

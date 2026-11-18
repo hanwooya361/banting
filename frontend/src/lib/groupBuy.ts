@@ -78,3 +78,72 @@ export function previewPrice(totalPrice: number, capacityUnits: number, hostUnit
   const remainder = totalPrice - unitPrice * capacityUnits
   return { unitPrice, remainder, hostAmount: unitPrice * hostUnits + remainder }
 }
+
+// ───── 목록 (T09) ─────
+
+export type GroupBuySort = 'DEADLINE' | 'LATEST'
+
+export type GroupBuyListItem = {
+  id: number
+  title: string
+  category: Category
+  priceType: PriceType
+  unitPrice: number
+  unitLabel: string
+  capacityUnits: number
+  minUnitsPerPerson: number
+  reservedUnits: number
+  paidUnits: number
+  neighborhoodName: string
+  deadlineAt: string
+  createdAt: string
+  thumbnailUrl: string | null
+}
+
+// 기준 위치 좌표는 서버가 주지 않는다 (동네 이름만)
+export type GroupBuyListResponse = {
+  neighborhoodName: string
+  radiusM: number
+  defaultLocation: boolean
+  items: GroupBuyListItem[]
+  page: number
+  hasNext: boolean
+}
+
+export const RADIUS_OPTIONS = [
+  { value: 500, label: '500m' },
+  { value: 1000, label: '1km' },
+  { value: 3000, label: '3km' },
+] as const
+
+export type ListQuery = {
+  radius: number | null // null이면 서버가 저장된 반경(비로그인은 1km)을 씀
+  category: Category | null
+  keyword: string
+  sort: GroupBuySort
+}
+
+export function listPath(query: ListQuery, page: number) {
+  const params = new URLSearchParams({ sort: query.sort, page: String(page) })
+  if (query.radius !== null) params.set('radius', String(query.radius))
+  if (query.category) params.set('category', query.category)
+  if (query.keyword.trim()) params.set('keyword', query.keyword.trim())
+  return `/api/group-buys?${params}`
+}
+
+// 마감까지 남은 시간: "3일 남음" / "5시간 남음" / "12분 남음" / "마감"
+export function timeLeft(deadlineAt: string, now: number = Date.now()) {
+  const minutes = Math.floor((new Date(deadlineAt).getTime() - now) / 60_000)
+  if (minutes <= 0) return '마감'
+  if (minutes < 60) return `${minutes}분 남음`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}시간 남음`
+  return `${Math.floor(hours / 24)}일 남음`
+}
+
+// 화면 설계 3장 모집 중 카피: "N명 더 모이면 반띵 확정!" / "N개 남았어요"
+export function remainingCopy(g: Pick<GroupBuyListItem, 'priceType' | 'capacityUnits' | 'reservedUnits' | 'unitLabel'>) {
+  const left = g.capacityUnits - g.reservedUnits
+  if (left <= 0) return '자리가 다 찼어요'
+  return g.priceType === 'EQUAL' ? `${left}명 더 모이면 반띵 확정!` : `${left}${g.unitLabel} 남았어요`
+}

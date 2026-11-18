@@ -195,6 +195,11 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 ### 반경 검색 (T07, T09)
 `WHERE status = 'OPEN' AND MBRContains(:box, location) AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
 반경 박스(MBRContains, 반경 × 1.1)로 먼저 거르고 거리로 정밀 필터해 SPATIAL INDEX를 탄다 (`GroupBuySpatialQuery`)
+- T09 목록 (2026-11-18 결정)
+  - 기준점은 화면이 보낸 좌표가 아니라 **서버에 저장된 내 동네 좌표**. 동네 설정 전·비로그인은 서울시청(37.5665, 126.9780), 반경 1km. 응답에는 동네 이름만 주고 좌표·거리는 넣지 않음 (임의 좌표를 받거나 거리를 주면 여러 지점에서 검색해 개설자 위치를 좁혀 낼 수 있음)
+  - 반경 칩(500/1000/3000)은 `radius` 파라미터로 바로 적용하고, 내 동네가 있으면 `PUT /me/location`으로 저장
+  - 조건: `OPEN` + `deadline_at > 지금`(T14 스케줄러 전에도 마감 지난 공구 숨김) + 카테고리 + 상품명 `LIKE`(%, _는 `!`로 이스케이프). 반경으로 이미 좁혀진 행이라 FULLTEXT 없이 LIKE
+  - 정렬 마감임박순(기본)·최신순. 페이지당 20개, 21개를 조회해 `hasNext` 판단 (COUNT 쿼리 없음). 대표 사진은 서브쿼리로 같이 가져와 N+1 없음
 - T07 확인: 공구 3,000건이 전국에 흩어진 분포에서 옵티마이저가 `sp_group_buys_location`을 고름 (EXPLAIN 테스트). 모든 행의 마감일이 같은 비현실적 데이터에서는 `(status, deadline_at)` 인덱스를 골랐음 → 실행 계획은 데이터 분포에 따라 바뀌므로 운영 데이터가 쌓이면 다시 확인 (T13 k6 때)
 
 ### 동네 설정 (T07)
@@ -221,7 +226,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료·결제 실패) · CANCELED
 | DELETE | /api/users/me | 탈퇴 | 회원 |
 | POST | /api/uploads/presigned | S3 업로드 URL 발급 (jpg·png·webp, 5MB) | 회원 |
 | POST | /api/group-buys | 공구 개설(DRAFT) + 개설자 자리 예약 (T08), 개설자 결제 준비 → orderId (T11) | 회원 |
-| GET | /api/group-buys | 목록 (lat, lng, radius, category, keyword, sort, page) | 공개 |
+| GET | /api/group-buys | 목록 (radius, category, keyword, sort=DEADLINE/LATEST, page). 기준점은 로그인 시 저장된 내 동네, 아니면 서울시청 (2026-11-18 변경: lat·lng 받지 않음) | 공개 |
 | GET | /api/group-buys/{id} | 상세 (진행률, 수령 후보, 내 참여 여부) | 공개 |
 | PATCH | /api/group-buys/{id} | 수정: 상품명·설명·카테고리·사진·마감 연장 (개설자 외 참여자 없을 때) | 개설자 |
 | DELETE | /api/group-buys/{id} | 삭제 (개설자 외 참여자 없을 때). T08은 DRAFT만, 결제된 공구는 개설자 몫 환불과 함께 T12 | 개설자 |
