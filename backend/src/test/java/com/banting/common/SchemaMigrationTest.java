@@ -88,6 +88,18 @@ class SchemaMigrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void demo_type은_NULL_SEED_TRIAL만_허용한다() {
+        long groupBuyId = insertGroupBuy(insertUser("demo@banting.test", "demo"), 4, 0, 0);
+
+        jdbc.update("UPDATE group_buys SET demo_type = 'SEED' WHERE id = ?", groupBuyId);
+        jdbc.update("UPDATE group_buys SET demo_type = 'TRIAL' WHERE id = ?", groupBuyId);
+        jdbc.update("UPDATE group_buys SET demo_type = NULL WHERE id = ?", groupBuyId);
+        assertThatThrownBy(() -> jdbc.update("UPDATE group_buys SET demo_type = 'FAKE' WHERE id = ?", groupBuyId))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("ck_group_buys_demo_type");
+    }
+
     private long insertUser(String email, String nickname) {
         jdbc.update("INSERT INTO users (email, password_hash, nickname, role, created_at, updated_at) "
                 + "VALUES (?, 'hash', ?, 'USER', NOW(6), NOW(6))", email, nickname);

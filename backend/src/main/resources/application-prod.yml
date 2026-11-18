@@ -9,3 +9,5 @@ spring:
 banting:
   jwt:
     secret: ${JWT_SECRET}
+  demo:
+    seed: true

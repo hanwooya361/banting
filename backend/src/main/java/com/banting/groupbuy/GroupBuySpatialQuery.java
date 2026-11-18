@@ -37,16 +37,17 @@ public class GroupBuySpatialQuery {
      * @param category null이면 전체
      * @param keyword  null이면 검색 안 함 (앞뒤 공백은 호출 쪽에서 정리)
      * @param now      마감이 지난 공구 제외 기준 (마감 스케줄러 T14 전에도 목록에 안 보이게)
+     * @param includeSeed 시드(예시) 공구 포함 여부. 체험 공구(TRIAL)는 어떤 경우에도 목록에 안 나온다
      */
     public record Condition(GeoPoint center, int radiusM, Category category, String keyword,
-                            GroupBuySort sort, LocalDateTime now, int limit, int offset) {
+                            GroupBuySort sort, LocalDateTime now, int limit, int offset, boolean includeSeed) {
     }
 
     /** 목록 카드 한 줄. thumbnailKey는 첫 번째 사진의 S3 키 (없으면 null). */
     public record Row(long id, String title, Category category, PriceType priceType, long totalPrice,
                       int totalQuantity, String unitLabel, int capacityUnits, int minUnitsPerPerson,
                       int reservedUnits, int paidUnits, String neighborhoodName, LocalDateTime deadlineAt,
-                      LocalDateTime createdAt, String thumbnailKey) {
+                      LocalDateTime createdAt, String thumbnailKey, DemoType demoType) {
     }
 
     public List<Row> search(Condition condition) {
@@ -56,7 +57,8 @@ public class GroupBuySpatialQuery {
                 rs.getInt("total_quantity"), rs.getString("unit_label"), rs.getInt("capacity_units"),
                 rs.getInt("min_units_per_person"), rs.getInt("reserved_units"), rs.getInt("paid_units"),
                 rs.getString("neighborhood_name"), rs.getObject("deadline_at", LocalDateTime.class),
-                rs.getObject("created_at", LocalDateTime.class), rs.getString("thumbnail_key")));
+                rs.getObject("created_at", LocalDateTime.class), rs.getString("thumbnail_key"),
+                rs.getString("demo_type") == null ? null : DemoType.valueOf(rs.getString("demo_type"))));
     }
 
     /** 조건에 따라 WHERE·ORDER BY만 바뀐다. 사용자 입력은 모두 바인딩 파라미터로만 들어간다. */
@@ -64,7 +66,7 @@ public class GroupBuySpatialQuery {
         StringBuilder sql = new StringBuilder("""
                 SELECT g.id, g.title, g.category, g.price_type, g.total_price, g.total_quantity, g.unit_label,
                        g.capacity_units, g.min_units_per_person, g.reserved_units, g.paid_units,
-                       g.neighborhood_name, g.deadline_at, g.created_at,
+                       g.neighborhood_name, g.deadline_at, g.created_at, g.demo_type,
                        (SELECT i.url FROM group_buy_images i WHERE i.group_buy_id = g.id
                         ORDER BY i.sort_order LIMIT 1) AS thumbnail_key
                 FROM group_buys g
@@ -73,6 +75,9 @@ public class GroupBuySpatialQuery {
                   AND MBRContains(ST_GeomFromText(:box, 4326), g.location)
                   AND ST_Distance_Sphere(g.location, ST_PointFromText(:center, 4326)) <= :radius
                 """);
+        sql.append(condition.includeSeed()
+                ? "  AND (g.demo_type IS NULL OR g.demo_type = 'SEED')\n"
+                : "  AND g.demo_type IS NULL\n");
         if (condition.category() != null) {
             sql.append("  AND g.category = :category\n");
         }

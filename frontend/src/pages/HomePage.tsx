@@ -20,7 +20,13 @@ const CATEGORIES = Object.keys(CATEGORY_LABELS) as Category[]
 // S01 홈: 내 동네 반경 안의 모집 중 공구
 export function HomePage() {
   const { me, loading: authLoading, reloadMe } = useAuth()
-  const [query, setQuery] = useState<ListQuery>({ radius: null, category: null, keyword: '', sort: 'DEADLINE' })
+  const [query, setQuery] = useState<ListQuery>({
+    radius: null,
+    category: null,
+    keyword: '',
+    sort: 'DEADLINE',
+    demoArea: false,
+  })
   const [keywordInput, setKeywordInput] = useState('')
   const [page, setPage] = useState(0)
   const [result, setResult] = useState<GroupBuyListResponse | null>(null)
@@ -61,8 +67,8 @@ export function HomePage() {
 
   const changeRadius = (radius: number) => {
     changeQuery({ radius })
-    // 내 동네가 있으면 반경도 저장해 다음 방문·다른 기기에서도 유지 (실패해도 이번 검색은 그대로)
-    if (me?.neighborhoodName) {
+    // 내 동네를 보는 중이면 반경도 저장해 다음 방문·다른 기기에서도 유지 (실패해도 이번 검색은 그대로)
+    if (me?.neighborhoodName && !query.demoArea) {
       api('/api/users/me/location', { method: 'PUT', body: { radiusM: radius } })
         .then(reloadMe)
         .catch(() => {})
@@ -89,7 +95,18 @@ export function HomePage() {
         ) : null}
       </div>
 
-      {result?.defaultLocation ? (
+      {query.demoArea ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-orange-50 px-4 py-3 text-sm">
+          <span className="text-gray-700">체험 동네(서울시청)의 예시 공구를 보고 있어요.</span>
+          <button
+            type="button"
+            onClick={() => changeQuery({ demoArea: false, radius: null })}
+            className="shrink-0 font-medium text-orange-600 hover:underline"
+          >
+            내 동네로 돌아가기
+          </button>
+        </div>
+      ) : result?.defaultLocation ? (
         <div className="flex items-center justify-between gap-3 rounded-lg bg-orange-50 px-4 py-3 text-sm">
           <span className="text-gray-700">지금은 서울시청 근처 공구를 보여드리고 있어요.</span>
           <Link
@@ -180,7 +197,16 @@ export function HomePage() {
 
       {!error && !loading && items.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center text-gray-600">
-          <p>{query.keyword || query.category ? '조건에 맞는 공구가 없어요.' : '아직 이 근처에 모집 중인 공구가 없어요.'}</p>
+          <p>{query.keyword || query.category ? '조건에 맞는 공구가 없어요.' : '근처 공구가 아직 없어요.'}</p>
+          {result && !result.defaultLocation && !query.keyword && !query.category ? (
+            <button
+              type="button"
+              onClick={() => changeQuery({ demoArea: true, radius: null })}
+              className="rounded-full border border-orange-500 px-4 py-2 text-sm font-medium text-orange-600"
+            >
+              체험 동네 공구 보기
+            </button>
+          ) : null}
           {me ? (
             <Link to="/group-buys/new" className="rounded-full bg-orange-500 px-4 py-2 text-sm font-medium text-white">
               첫 공구 열기
@@ -229,7 +255,12 @@ function GroupBuyCard({ g }: { g: GroupBuyListItem }) {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="truncate font-medium">{g.title}</p>
+        <p className="flex min-w-0 items-center gap-1.5">
+          {g.demo ? (
+            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-600">예시</span>
+          ) : null}
+          <span className="truncate font-medium">{g.title}</span>
+        </p>
         <p className="text-xs text-gray-500">
           {g.neighborhoodName} · {CATEGORY_LABELS[g.category]} · <span className="text-orange-600">{timeLeft(g.deadlineAt)}</span>
         </p>

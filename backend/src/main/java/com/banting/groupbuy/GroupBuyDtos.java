@@ -91,7 +91,8 @@ public final class GroupBuyDtos {
             List<PickupOptionView> pickupOptions,
             HostView host,
             boolean mine,
-            Long myAmount) {
+            Long myAmount,
+            boolean demo) {
     }
 
     /**
@@ -124,7 +125,8 @@ public final class GroupBuyDtos {
             String neighborhoodName,
             LocalDateTime deadlineAt,
             LocalDateTime createdAt,
-            String thumbnailUrl) {
+            String thumbnailUrl,
+            boolean demo) {
     }
 
     /** key는 수정할 때 기존 사진을 유지하려고 돌려보낼 값, url은 화면 표시용. */
