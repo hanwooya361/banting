@@ -42,7 +42,7 @@ export function GroupBuyDetailPage() {
     setDeleting(true)
     try {
       await api(`/api/group-buys/${g.id}`, { method: 'DELETE' })
-      navigate('/', { replace: true })
+      navigate('/group-buys', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '삭제하지 못했어요')
       setDeleting(false)

@@ -5,6 +5,7 @@ import { GroupBuyDetailPage } from './pages/GroupBuyDetailPage'
 import { GroupBuyEditPage } from './pages/GroupBuyEditPage'
 import { GroupBuyNewPage } from './pages/GroupBuyNewPage'
 import { HomePage } from './pages/HomePage'
+import { LandingPage } from './pages/LandingPage'
 import { LocationPage } from './pages/LocationPage'
 import { LoginPage } from './pages/LoginPage'
 import { MePage } from './pages/MePage'
@@ -14,7 +15,9 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<HomePage />} />
+        <Route index element={<LandingPage />} />
+        <Route path="intro" element={<LandingPage alwaysShow />} />
+        <Route path="group-buys" element={<HomePage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route

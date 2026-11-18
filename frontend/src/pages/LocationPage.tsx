@@ -91,7 +91,7 @@ export function LocationPage() {
         : { radiusM }
       await api('/api/users/me/location', { method: 'PUT', body })
       await reloadMe()
-      navigate(onboarding ? '/' : '/me', { replace: true })
+      navigate(onboarding ? '/group-buys' : '/me', { replace: true })
     } catch (err) {
       setError(errorMessage(err))
       setBusy(null)
