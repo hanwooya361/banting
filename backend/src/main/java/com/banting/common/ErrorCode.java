@@ -62,6 +62,10 @@ public enum ErrorCode {
     PAYMENT_REJECTED(HttpStatus.BAD_REQUEST, "결제가 승인되지 않았어요. 결제 수단을 확인하고 다시 시도해 주세요"),
     PAYMENT_CANCELED(HttpStatus.CONFLICT, "결제를 마무리하지 못해 바로 취소했어요. 돈은 나가지 않아요"),
     PAYMENT_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "결제 서비스가 잠시 응답하지 않아요. 결제됐다면 자동으로 취소돼요"),
+    PARTICIPATION_NOT_FOUND(HttpStatus.NOT_FOUND, "참여 정보를 찾을 수 없어요"),
+    PARTICIPATION_NOT_CANCELABLE(HttpStatus.CONFLICT, "확정됐거나 마감된 공구는 취소할 수 없어요"),
+    HOST_USE_GROUP_CANCEL(HttpStatus.CONFLICT, "개설자는 공구 취소로 전체를 취소할 수 있어요"),
+    GROUP_BUY_NOT_CANCELABLE(HttpStatus.CONFLICT, "모집 중인 공구만 취소할 수 있어요"),
     PAYMENT_NEEDS_REVIEW(HttpStatus.INTERNAL_SERVER_ERROR, "결제 확인이 필요해요. 문의를 남겨 주시면 바로 확인할게요"),
 
     // 사진

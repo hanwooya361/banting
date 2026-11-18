@@ -7,7 +7,7 @@ import type { GroupBuyStatus } from './groupBuy'
 export const TOSS_CLIENT_KEY: string =
   import.meta.env.VITE_TOSS_CLIENT_KEY ?? 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm'
 
-export type ParticipationStatus = 'PENDING_PAYMENT' | 'PAID' | 'CANCELED' | 'REFUNDED' | 'RECEIVED'
+export type ParticipationStatus = 'PENDING_PAYMENT' | 'PAID' | 'CANCELED' | 'REFUND_PENDING' | 'REFUNDED' | 'RECEIVED'
 
 export type PaymentOrder = {
   participationId: number
@@ -80,6 +80,20 @@ export function failMessage(code: string | null, message: string | null) {
   if (code === 'PAY_PROCESS_ABORTED') return '결제가 중간에 멈췄어요. 다시 시도해 주세요.'
   if (code === 'REJECT_CARD_COMPANY') return '카드사에서 결제를 거절했어요. 다른 카드로 시도해 주세요.'
   return message ?? '결제를 마치지 못했어요.'
+}
+
+export type CancelResult = { status: ParticipationStatus; refundAmount: number }
+
+/** 참여 취소 (T12). 결제 전이면 CANCELED, 결제 후면 환불(실패하면 REFUND_PENDING, 다시 부르면 재시도). */
+export function cancelParticipation(participationId: number) {
+  return api<CancelResult>(`/api/participations/${participationId}`, { method: 'DELETE' })
+}
+
+export type HostCancelResult = { refunded: number; pendingRefunds: number }
+
+/** 개설자의 공구 취소 → 무산, 전원 환불. */
+export function cancelGroupBuy(groupBuyId: number) {
+  return api<HostCancelResult>(`/api/group-buys/${groupBuyId}/cancel`, { method: 'POST' })
 }
 
 export function minutesLeft(expiresAt: string, now: number = Date.now()) {

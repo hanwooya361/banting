@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../lib/api'
-import { CATEGORY_LABELS, formatDateTime, STATUS_BADGES, won, type GroupBuyDetail } from '../lib/groupBuy'
+import { beforeDeadline, CATEGORY_LABELS, formatDateTime, STATUS_BADGES, won, type GroupBuyDetail } from '../lib/groupBuy'
 import { useAuth } from '../auth/context'
 import { ParticipateSheet } from '../components/ParticipateSheet'
-import { minutesLeft, startPayment } from '../lib/payment'
+import { cancelGroupBuy, cancelParticipation, minutesLeft, startPayment } from '../lib/payment'
 
 export function GroupBuyDetailPage() {
   const { id } = useParams()
@@ -16,6 +16,9 @@ export function GroupBuyDetailPage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [paying, setPaying] = useState(false)
   const [payError, setPayError] = useState<string | null>(null)
+  // 취소 후 상세를 다시 불러오기 위한 값 (바뀌면 effect가 다시 돈다)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     // 로그인 복원(refresh)이 끝난 뒤 불러와야 내 공구 여부가 정확하다
@@ -31,7 +34,7 @@ export function GroupBuyDetailPage() {
     return () => {
       active = false
     }
-  }, [id, authLoading])
+  }, [id, authLoading, reloadKey])
 
   if (error) return <p className="py-16 text-center text-gray-600">{error}</p>
   if (!groupBuy) return <p className="py-16 text-center text-gray-500">불러오는 중…</p>
@@ -52,6 +55,54 @@ export function GroupBuyDetailPage() {
     } catch (err) {
       setPayError(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
       setPaying(false)
+    }
+  }
+
+  // 참여 취소: 결제 전이면 바로, 결제 후면 전액 환불 (환불이 늦어지면 다시 눌러 재시도)
+  const handleCancelParticipation = async () => {
+    const mp = g.myParticipation
+    if (!mp) return
+    const message =
+      mp.status === 'PENDING_PAYMENT'
+        ? '결제를 취소하고 잡아 둔 자리를 풀까요?'
+        : `참여를 취소할까요? ${won(mp.amount)}이 전액 환불돼요. 같은 공구에는 다시 참여할 수 없어요.`
+    if (mp.status !== 'REFUND_PENDING' && !window.confirm(message)) return
+    setPaying(true)
+    setPayError(null)
+    try {
+      const result = await cancelParticipation(mp.id)
+      setNotice(
+        result.status === 'REFUND_PENDING'
+          ? '환불을 접수했어요. 결제사 응답이 늦어 처리 중이에요. 잠시 후 다시 확인해 주세요.'
+          : result.status === 'REFUNDED'
+            ? `${won(result.refundAmount)} 환불했어요.`
+            : '결제 대기를 취소했어요.',
+      )
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setPayError(err instanceof ApiError ? err.message : '취소하지 못했어요')
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  // 개설자의 공구 취소: 무산 처리하고 참여자 전원(개설자 포함) 환불
+  const handleCancelGroupBuy = async () => {
+    if (!window.confirm('공구를 취소할까요? 참여한 이웃과 내 몫까지 모두 전액 환불되고, 되돌릴 수 없어요.')) return
+    setDeleting(true)
+    setError(null)
+    try {
+      const result = await cancelGroupBuy(g.id)
+      setNotice(
+        result.pendingRefunds > 0
+          ? `${result.refunded}건 환불, ${result.pendingRefunds}건은 처리 중이에요. 잠시 후 '남은 환불 다시 시도'를 눌러 주세요.`
+          : `공구를 취소하고 ${result.refunded}건 모두 환불했어요.`,
+      )
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setNotice(err instanceof ApiError ? err.message : '취소하지 못했어요')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -99,6 +150,17 @@ export function GroupBuyDetailPage() {
         </div>
         <h1 className="text-2xl font-bold">{g.title}</h1>
       </header>
+
+      {g.status === 'FAILED' ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <p className="font-medium">무산된 공구예요</p>
+          <p className="mt-1">
+            {g.failReason === 'HOST_CANCELED'
+              ? '개설자가 공구를 취소해서 결제한 금액을 전액 환불했어요.'
+              : '인원이 모이지 않아 결제한 금액을 전액 환불했어요.'}
+          </p>
+        </div>
+      ) : null}
 
       {g.demo ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
@@ -173,9 +235,43 @@ export function GroupBuyDetailPage() {
         </ul>
       </section>
 
+      {notice ? (
+        <p role="status" className="rounded-lg bg-gray-900 px-4 py-3 text-sm text-white">
+          {notice}
+        </p>
+      ) : null}
+
       {/* 페이지 맨 아래에 두어 스크롤하는 동안 화면 아래에 붙어 있게 (sticky) */}
       {!g.mine && !g.demo ? (
-        <ParticipationBox groupBuy={g} paying={paying} payError={payError} onJoin={openSheet} onResume={resumePayment} />
+        <ParticipationBox
+          groupBuy={g}
+          paying={paying}
+          payError={payError}
+          onJoin={openSheet}
+          onResume={resumePayment}
+          onCancel={handleCancelParticipation}
+        />
+      ) : null}
+
+      {g.mine && g.status === 'OPEN' ? (
+        <button
+          type="button"
+          onClick={handleCancelGroupBuy}
+          disabled={deleting}
+          className="rounded-lg border border-red-300 py-2.5 font-medium text-red-600 disabled:opacity-50"
+        >
+          {deleting ? '취소하는 중…' : '공구 취소 (전원 환불)'}
+        </button>
+      ) : null}
+      {g.mine && g.failReason === 'HOST_CANCELED' ? (
+        <button
+          type="button"
+          onClick={handleCancelGroupBuy}
+          disabled={deleting}
+          className="text-sm text-gray-500 underline disabled:opacity-50"
+        >
+          남은 환불 다시 시도
+        </button>
       ) : null}
 
       {editable ? (
@@ -211,12 +307,14 @@ function ParticipationBox({
   payError,
   onJoin,
   onResume,
+  onCancel,
 }: {
   groupBuy: GroupBuyDetail
   paying: boolean
   payError: string | null
   onJoin: () => void
   onResume: (units: number, host: boolean) => void
+  onCancel: () => void
 }) {
   const mp = g.myParticipation
   const unitWord = g.priceType === 'EQUAL' ? '명' : g.unitLabel
@@ -229,6 +327,34 @@ function ParticipationBox({
           {g.priceType === 'EQUAL' ? '1몫' : `${mp.units}${g.unitLabel}`} · {won(mp.amount)} 결제함.{' '}
           {g.status === 'CONFIRMED' ? '다 모여서 확정됐어요!' : '다 모이면 자동으로 확정돼요.'}
         </p>
+        {mp.status === 'PAID' && g.status === 'OPEN' && beforeDeadline(g.deadlineAt) ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={paying}
+            className="mt-2 text-xs text-gray-500 underline disabled:opacity-50"
+          >
+            참여 취소하고 환불받기
+          </button>
+        ) : null}
+        {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
+      </div>
+    )
+  }
+  if (mp?.status === 'REFUND_PENDING') {
+    return (
+      <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-700">
+        <p className="font-medium">환불 처리 중이에요</p>
+        <p className="mt-1">결제사 응답이 늦어지고 있어요. 잠시 후 아래 버튼으로 다시 요청해 주세요.</p>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={paying}
+          className="mt-2 text-xs text-gray-600 underline disabled:opacity-50"
+        >
+          환불 다시 요청
+        </button>
+        {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
       </div>
     )
   }
@@ -249,6 +375,14 @@ function ParticipationBox({
           className="mt-3 w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white disabled:opacity-50"
         >
           {paying ? '준비 중…' : `${won(mp.amount)} 결제 이어 하기`}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={paying}
+          className="mt-2 w-full text-xs text-gray-500 underline disabled:opacity-50"
+        >
+          결제 대기 취소
         </button>
         {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
       </div>

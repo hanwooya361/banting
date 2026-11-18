@@ -61,6 +61,13 @@ public class GroupBuyController {
         return groupBuyService.update(userId(jwt), id, request);
     }
 
+    /** 모집 중 공구를 개설자가 취소 → 무산, 전원 환불. 일부 환불이 대기로 남으면 202 (다시 요청하면 재시도). */
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<GroupBuyService.CancelResult> cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
+        GroupBuyService.CancelResult result = groupBuyService.cancel(userId(jwt), id);
+        return ResponseEntity.status(result.pendingRefunds() > 0 ? HttpStatus.ACCEPTED : HttpStatus.OK).body(result);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @PathVariable Long id) {
         groupBuyService.delete(userId(jwt), id);

@@ -287,6 +287,39 @@ public class GroupBuy extends BaseTimeEntity {
         }
     }
 
+    // ───── 취소 (T12) ─────
+
+    /** 결제 후 취소는 모집 중이고 마감 전에만. 확정되면 개설자가 살 수 있는 상태라 빠질 수 없다. */
+    public void checkCancelable(LocalDateTime now) {
+        if (status != GroupBuyStatus.OPEN || !deadlineAt.isAfter(now)) {
+            throw new BusinessException(ErrorCode.PARTICIPATION_NOT_CANCELABLE);
+        }
+    }
+
+    /** 참여 취소로 자리 반환. paid면 결제된 자리도 함께 줄인다. */
+    public void release(int units, boolean paid) {
+        if (units > reservedUnits || (paid && units > paidUnits)) {
+            throw new IllegalStateException("반환할 자리가 잡힌 자리보다 많음");
+        }
+        reservedUnits -= units;
+        if (paid) {
+            paidUnits -= units;
+        }
+    }
+
+    /** 개설자 취소: 모집 중에만. 참여자 환불은 서비스가 이어서 처리한다. 자리 수는 기록으로 그대로 둔다. */
+    public void cancelByHost() {
+        if (status != GroupBuyStatus.OPEN) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_CANCELABLE);
+        }
+        status = GroupBuyStatus.FAILED;
+        failReason = FailReason.HOST_CANCELED;
+    }
+
+    public boolean isCanceledByHost() {
+        return status == GroupBuyStatus.FAILED && failReason == FailReason.HOST_CANCELED;
+    }
+
     // ───── 검증 ─────
 
     static String validateProductUrl(String raw) {

@@ -8,6 +8,7 @@ import com.banting.groupbuy.PriceType;
 import com.banting.payment.Payment;
 import com.banting.payment.PaymentRepository;
 import com.banting.payment.PaymentStatus;
+import com.banting.payment.RefundService;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -31,6 +32,7 @@ public class ParticipationService {
     private final GroupBuyRepository groupBuyRepository;
     private final ParticipationRepository participationRepository;
     private final PaymentRepository paymentRepository;
+    private final RefundService refundService;
     private final TransactionTemplate tx;
     private final Clock clock;
 
@@ -102,6 +104,66 @@ public class ParticipationService {
             }
         }
         return newOrder(groupBuy, participation);
+    }
+
+    /** 취소 결과. refundAmount는 돌려받는(받을) 금액, 결제 전 취소면 0. */
+    public record CancelResult(ParticipationStatus status, long refundAmount) {
+    }
+
+    /**
+     * 참여 취소 (T12). 결제 전이면 바로 CANCELED, 결제 후면 환불.
+     * ① 짧은 트랜잭션(공구 → 참여 잠금): 확인, 자리 반환, 참여 REFUND_PENDING
+     * ② 토스 취소(트랜잭션 밖) → ③ REFUNDED. ②가 실패하면 환불 대기로 남고, 같은 요청을 다시 하면 재시도한다.
+     */
+    public CancelResult cancel(Long userId, Long participationId) {
+        Participation found = participationRepository.findById(participationId)
+                .filter(p -> p.getUserId().equals(userId))
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARTICIPATION_NOT_FOUND));
+        if (found.isHost()) {
+            throw new BusinessException(ErrorCode.HOST_USE_GROUP_CANCEL);
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        ParticipationStatus afterTx = found.isRefundPending()
+                ? ParticipationStatus.REFUND_PENDING   // 이전 환불이 실패해 다시 누름 → 바로 재시도
+                : tx.execute(status -> startCancel(found.getGroupBuyId(), participationId, now));
+
+        if (afterTx == ParticipationStatus.CANCELED) {
+            return new CancelResult(ParticipationStatus.CANCELED, 0);
+        }
+        boolean refunded = refundService.refund(participationId, "참여자 취소");
+        return new CancelResult(refunded ? ParticipationStatus.REFUNDED : ParticipationStatus.REFUND_PENDING,
+                found.getAmount());
+    }
+
+    private ParticipationStatus startCancel(Long groupBuyId, Long participationId, LocalDateTime now) {
+        GroupBuy groupBuy = groupBuyRepository.findByIdForUpdate(groupBuyId).orElseThrow();
+        Participation participation = participationRepository.findByIdForUpdate(participationId).orElseThrow();
+        switch (participation.getStatus()) {
+            case PENDING_PAYMENT -> {
+                if (groupBuy.getStatus() != com.banting.groupbuy.GroupBuyStatus.OPEN) {
+                    throw new BusinessException(ErrorCode.PARTICIPATION_NOT_CANCELABLE);
+                }
+                participation.cancelPending();
+                groupBuy.release(participation.getUnits(), false);
+                failReadyPayments(participation.getId(), "참여 취소");
+            }
+            case PAID -> {
+                groupBuy.checkCancelable(now);
+                participation.requestRefund();
+                groupBuy.release(participation.getUnits(), true);
+            }
+            case REFUND_PENDING -> {
+                // 동시에 들어온 같은 취소가 먼저 처리함 → 환불만 이어서
+            }
+            default -> throw new BusinessException(ErrorCode.PARTICIPATION_NOT_CANCELABLE);
+        }
+        return participation.getStatus();
+    }
+
+    /** 결제창에서 쓰던 주문번호로 나중에 승인되지 않게 막는다. */
+    private void failReadyPayments(Long participationId, String reason) {
+        paymentRepository.findByParticipationIdAndStatus(participationId, PaymentStatus.READY)
+                .forEach(payment -> payment.fail(null, reason));
     }
 
     /** 균등은 한 사람 한 자리, 수량별은 최소 수량 이상 정원 이하. 남은 자리 확인은 조건부 UPDATE가 한다. */

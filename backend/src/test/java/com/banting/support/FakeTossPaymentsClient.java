@@ -22,6 +22,7 @@ public class FakeTossPaymentsClient implements TossPaymentsClient {
     private String rejectCode;
     private boolean unavailable;
     private boolean failCancel;
+    private String cancelRejectCode;
     private Runnable onConfirm;
 
     public synchronized void reset() {
@@ -30,6 +31,7 @@ public class FakeTossPaymentsClient implements TossPaymentsClient {
         rejectCode = null;
         unavailable = false;
         failCancel = false;
+        cancelRejectCode = null;
         onConfirm = null;
     }
 
@@ -41,8 +43,19 @@ public class FakeTossPaymentsClient implements TossPaymentsClient {
         this.unavailable = true;
     }
 
+    /** 이후 취소 요청이 계속 응답 없이 실패 (cancelWorks()로 되돌림). */
     public synchronized void failCancel() {
         this.failCancel = true;
+    }
+
+    public synchronized void cancelWorks() {
+        this.failCancel = false;
+        this.cancelRejectCode = null;
+    }
+
+    /** 이후 취소 요청을 토스가 이 코드로 거절 (예: ALREADY_CANCELED_PAYMENT). */
+    public synchronized void rejectCancel(String code) {
+        this.cancelRejectCode = code;
     }
 
     public synchronized void onConfirm(Runnable hook) {
@@ -83,6 +96,9 @@ public class FakeTossPaymentsClient implements TossPaymentsClient {
     @Override
     public synchronized void cancel(String paymentKey, String orderId, String reason) {
         cancels.add(paymentKey);
+        if (cancelRejectCode != null) {
+            throw new TossRejectedException(cancelRejectCode, "테스트 취소 거절");
+        }
         if (failCancel) {
             throw new TossUnavailableException("테스트 취소 실패", null);
         }
