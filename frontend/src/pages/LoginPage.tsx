@@ -8,7 +8,7 @@ export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const from = (location.state as { from?: string } | null)?.from ?? '/group-buys'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

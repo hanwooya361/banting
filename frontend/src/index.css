@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+/* 표지(S00) 카드 묶음이 둥실 떠 있는 효과. 움직임 줄이기 설정이면 motion-safe:로 꺼진다 */
+@theme {
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-float-slow: float 8s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -10px;
+  }
+}
