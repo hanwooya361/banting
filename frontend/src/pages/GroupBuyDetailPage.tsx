@@ -3,14 +3,19 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../lib/api'
 import { CATEGORY_LABELS, formatDateTime, STATUS_BADGES, won, type GroupBuyDetail } from '../lib/groupBuy'
 import { useAuth } from '../auth/context'
+import { ParticipateSheet } from '../components/ParticipateSheet'
+import { minutesLeft, startPayment } from '../lib/payment'
 
 export function GroupBuyDetailPage() {
   const { id } = useParams()
-  const { loading: authLoading } = useAuth()
+  const { me, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [groupBuy, setGroupBuy] = useState<GroupBuyDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState<string | null>(null)
 
   useEffect(() => {
     // 로그인 복원(refresh)이 끝난 뒤 불러와야 내 공구 여부가 정확하다
@@ -36,6 +41,27 @@ export function GroupBuyDetailPage() {
   const unitWord = g.priceType === 'EQUAL' ? '명' : g.unitLabel
   const progress = Math.min(100, Math.round((g.reservedUnits / g.capacityUnits) * 100))
   const editable = g.mine && (g.status === 'DRAFT' || g.status === 'OPEN')
+
+  // 결제 대기 중인 내 참여(개설자 몫 포함)를 같은 수량으로 이어서 결제
+  const resumePayment = async (units: number, host: boolean) => {
+    setPaying(true)
+    setPayError(null)
+    try {
+      const order = await startPayment(g.id, units, host)
+      navigate(`/payments/checkout?orderId=${encodeURIComponent(order.orderId)}`)
+    } catch (err) {
+      setPayError(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
+      setPaying(false)
+    }
+  }
+
+  const openSheet = () => {
+    if (!me) {
+      navigate('/login', { state: { from: `/group-buys/${g.id}` } })
+      return
+    }
+    setSheetOpen(true)
+  }
 
   const handleDelete = async () => {
     if (!window.confirm('이 공구를 삭제할까요? 되돌릴 수 없어요.')) return
@@ -85,10 +111,22 @@ export function GroupBuyDetailPage() {
         <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
           <p className="font-medium text-orange-800">내 몫을 결제하면 공구가 공개돼요</p>
           <p className="mt-1 text-orange-700">
-            결제할 금액 <strong>{won(g.myAmount ?? 0)}</strong> · 결제 기능은 곧 열려요. 그 전까지는 나에게만 보여요.
+            결제할 금액 <strong>{won(g.myAmount ?? 0)}</strong> · 결제 전까지는 나에게만 보여요.
           </p>
+          {g.myParticipation?.status === 'PENDING_PAYMENT' ? (
+            <button
+              type="button"
+              onClick={() => resumePayment(g.myParticipation!.units, true)}
+              disabled={paying}
+              className="mt-3 w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white disabled:opacity-50"
+            >
+              {paying ? '준비 중…' : `내 몫 ${won(g.myAmount ?? 0)} 결제하기`}
+            </button>
+          ) : null}
+          {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
         </div>
       ) : null}
+
 
       <section className="rounded-xl border border-gray-200 p-4">
         <p className="text-sm text-gray-500">{g.priceType === 'EQUAL' ? '1명당' : `${g.unitLabel} 1개당`}</p>
@@ -135,6 +173,11 @@ export function GroupBuyDetailPage() {
         </ul>
       </section>
 
+      {/* 페이지 맨 아래에 두어 스크롤하는 동안 화면 아래에 붙어 있게 (sticky) */}
+      {!g.mine && !g.demo ? (
+        <ParticipationBox groupBuy={g} paying={paying} payError={payError} onJoin={openSheet} onResume={resumePayment} />
+      ) : null}
+
       {editable ? (
         <div className="flex gap-2">
           <Link
@@ -155,6 +198,74 @@ export function GroupBuyDetailPage() {
           ) : null}
         </div>
       ) : null}
+
+      {sheetOpen ? <ParticipateSheet groupBuy={g} onClose={() => setSheetOpen(false)} /> : null}
     </article>
+  )
+}
+
+// 참여자 쪽 상태별 안내와 버튼
+function ParticipationBox({
+  groupBuy: g,
+  paying,
+  payError,
+  onJoin,
+  onResume,
+}: {
+  groupBuy: GroupBuyDetail
+  paying: boolean
+  payError: string | null
+  onJoin: () => void
+  onResume: (units: number, host: boolean) => void
+}) {
+  const mp = g.myParticipation
+  const unitWord = g.priceType === 'EQUAL' ? '명' : g.unitLabel
+
+  if (mp && (mp.status === 'PAID' || mp.status === 'RECEIVED')) {
+    return (
+      <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
+        <p className="font-semibold text-orange-800">참여 완료</p>
+        <p className="mt-1 text-orange-700">
+          {g.priceType === 'EQUAL' ? '1몫' : `${mp.units}${g.unitLabel}`} · {won(mp.amount)} 결제함.{' '}
+          {g.status === 'CONFIRMED' ? '다 모여서 확정됐어요!' : '다 모이면 자동으로 확정돼요.'}
+        </p>
+      </div>
+    )
+  }
+  if (mp?.status === 'REFUNDED') {
+    return <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">취소하고 환불받은 공구예요.</p>
+  }
+  if (g.status !== 'OPEN') return null
+
+  if (mp?.status === 'PENDING_PAYMENT' && minutesLeft(mp.expiresAt) > 0) {
+    return (
+      <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
+        <p className="font-semibold text-orange-800">자리를 잡아 뒀어요. 결제를 마무리해 주세요</p>
+        <p className="mt-1 text-orange-700">{minutesLeft(mp.expiresAt)}분 안에 결제하지 않으면 자리가 풀려요.</p>
+        <button
+          type="button"
+          onClick={() => onResume(mp.units, false)}
+          disabled={paying}
+          className="mt-3 w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white disabled:opacity-50"
+        >
+          {paying ? '준비 중…' : `${won(mp.amount)} 결제 이어 하기`}
+        </button>
+        {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
+      </div>
+    )
+  }
+
+  const full = g.reservedUnits >= g.capacityUnits
+  return (
+    <div className="sticky bottom-3 z-10">
+      <button
+        type="button"
+        onClick={onJoin}
+        disabled={full}
+        className="w-full rounded-xl bg-orange-500 py-3.5 text-lg font-semibold text-white shadow-lg shadow-orange-500/20 disabled:bg-gray-300 disabled:shadow-none"
+      >
+        {full ? `${unitWord === '명' ? '자리' : unitWord}가 다 찼어요` : `참여하기 · ${won(g.unitPrice)}${g.priceType === 'EQUAL' ? '' : `/${g.unitLabel}`}`}
+      </button>
+    </div>
   )
 }

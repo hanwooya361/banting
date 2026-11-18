@@ -4,6 +4,7 @@ import { useAuth } from '../auth/context'
 import { ImagePicker, type PickedImage } from '../components/ImagePicker'
 import { TextField } from '../components/TextField'
 import { api, ApiError } from '../lib/api'
+import { startPayment } from '../lib/payment'
 import {
   CATEGORY_LABELS,
   previewPrice,
@@ -99,7 +100,13 @@ export function GroupBuyNewPage() {
           pickupOptions: pickups.map((p) => ({ pickupAt: p.pickupAt, placeName: p.placeName })),
         },
       })
-      navigate(`/group-buys/${created.id}`, { replace: true })
+      // 개설 직후 바로 내 몫 결제로. 결제를 시작하지 못하면 상세에서 다시 결제할 수 있다
+      try {
+        const order = await startPayment(created.id, created.myParticipation?.units ?? 1, true)
+        navigate(`/payments/checkout?orderId=${encodeURIComponent(order.orderId)}`, { replace: true })
+      } catch {
+        navigate(`/group-buys/${created.id}`, { replace: true })
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setFieldErrors(Object.fromEntries(err.fieldErrors.map((f) => [f.field, f.message])))
