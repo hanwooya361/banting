@@ -1,0 +1,119 @@
+package com.banting.payment;
+
+import com.banting.common.BaseTimeEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.time.LocalDateTime;
+import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+/**
+ * 결제 한 건 = 토스 주문 한 건. 참여 하나에 여러 건이 생길 수 있다 (거절 후 재시도 등). 성공(DONE)은 최대 한 건.
+ * 상태 전이: READY → DONE / FAILED, READY → CANCELED(승인됐지만 DB 반영 실패로 보상 취소)
+ */
+@Entity
+@Table(name = "payments")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Payment extends BaseTimeEntity {
+
+    private static final int REASON_MAX = 100;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "participation_id", nullable = false)
+    private Long participationId;
+
+    @Column(name = "order_id", nullable = false, length = 64, unique = true)
+    private String orderId;
+
+    @Column(name = "payment_key", length = 200)
+    private String paymentKey;
+
+    @Column(nullable = false)
+    private long amount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 15)
+    private PaymentStatus status;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "canceled_at")
+    private LocalDateTime canceledAt;
+
+    /** 취소·실패 사유 (토스 오류 코드 등). */
+    @Column(name = "cancel_reason", length = REASON_MAX)
+    private String cancelReason;
+
+    /**
+     * 주문번호는 서버가 만든다. 토스 규칙(영문·숫자·-·_ 6~64자)에 맞추고, 추측할 수 없게 무작위.
+     * 금액도 서버가 계산한 값만 저장하고, 승인 때 브라우저가 보낸 금액과 비교한다.
+     */
+    public static Payment ready(Long participationId, long amount) {
+        Payment p = new Payment();
+        p.participationId = participationId;
+        p.orderId = "bt-" + UUID.randomUUID();
+        p.amount = amount;
+        p.status = PaymentStatus.READY;
+        return p;
+    }
+
+    public boolean isDone() {
+        return status == PaymentStatus.DONE;
+    }
+
+    public boolean isReady() {
+        return status == PaymentStatus.READY;
+    }
+
+    public void done(String paymentKey, LocalDateTime approvedAt) {
+        requireReady();
+        this.paymentKey = paymentKey;
+        this.approvedAt = approvedAt;
+        this.status = PaymentStatus.DONE;
+    }
+
+    /** 승인 거절, 응답 없음, 새 주문으로 대체 등. paymentKey는 알면 남긴다 (나중에 토스에서 조회할 수 있게). */
+    public void fail(String paymentKey, String reason) {
+        requireReady();
+        if (paymentKey != null) {
+            this.paymentKey = paymentKey;
+        }
+        this.cancelReason = truncate(reason);
+        this.status = PaymentStatus.FAILED;
+    }
+
+    /** 토스에서는 승인됐지만 우리 DB 반영이 실패해 취소한 경우 (보상). */
+    public void compensated(String paymentKey, String reason, LocalDateTime canceledAt) {
+        requireReady();
+        this.paymentKey = paymentKey;
+        this.cancelReason = truncate(reason);
+        this.canceledAt = canceledAt;
+        this.status = PaymentStatus.CANCELED;
+    }
+
+    private void requireReady() {
+        if (status != PaymentStatus.READY) {
+            throw new IllegalStateException("결제 대기 상태가 아닙니다: " + status);
+        }
+    }
+
+    private static String truncate(String reason) {
+        if (reason == null) {
+            return null;
+        }
+        return reason.length() <= REASON_MAX ? reason : reason.substring(0, REASON_MAX);
+    }
+}

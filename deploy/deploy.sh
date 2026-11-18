@@ -34,6 +34,7 @@ sync_secret() {
   echo "비밀 값 반영: ${env_name} (${#value}자)"
 }
 sync_secret KAKAO_REST_API_KEY /banting/prod/kakao-rest-api-key
+sync_secret TOSS_SECRET_KEY /banting/prod/toss-secret-key
 
 PREV_TAG="$(cat .current_tag 2>/dev/null || true)"
 echo "배포 시작: ${PREV_TAG:-없음} → ${NEW_TAG}"
