@@ -268,6 +268,15 @@ CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 
 - 상세 응답 `settlement`(개설자에게만): gross·fee·net·status
 - 테스트: `FeePolicyTest` 10개(내림·합계·0%·100%·넘침·범위), `ReceiveSettlementIntegrationTest` 15개(구매했어요 권한·상태, 받았어요 전·남의 것·개설자 몫·두 번, 전원 수령 → 완료·정산 30,000/900/29,100, 기한 경과 자동 완료·기한 전·미구매 제외·두 번·자동 완료 후 받았어요·시드 제외, **마지막 받았어요와 자동 완료 동시 → 정산 1건**, 정산은 개설자에게만)
 
+### 내 공구 화면 (S07 확정)
+- `GET /api/users/me/group-buys` → `{active, hosting, past}`. 탭마다 따로 부르지 않고 한 번에 받아 탭에 개수 표시
+  - 참여 중: 참여자 + (결제 대기·결제 완료·수령 확인) + 공구가 모집 중·확정·나눔 준비 / 개설한: 개설자 + 공구가 DRAFT·모집 중·확정·나눔 준비 / 지난 공구: 그 밖(완료·무산, 내가 취소해 환불·환불 대기)
+  - 결제 전 취소·대기 만료(CANCELED)와 시드 공구는 어디에도 넣지 않음
+- 쿼리 3번: 내 참여 + 공구 조인(최근 100개) → 대표 사진 `IN`(첫 번째 사진) → 정해진 수령 일정 `IN`. 공구마다 따로 조회하는 N+1 없음. 분류·정렬은 Java
+- 지금 할 일(todo): PAY(만료 전 결제 대기) / PURCHASE(개설자, 확정) / RECEIVE(참여자, 나눔 준비 → 카드에서 바로 받았어요). 할 일 있는 카드가 맨 위, 그다음 마감 임박 순. 지난 공구는 최근 마감 순
+- 헤더에 "내 공구" 링크. 휴대폰 폭에서 헤더가 두 줄로 깨져 닉네임 대신 "내 정보", 로그아웃은 내 정보 화면으로 옮김
+- 테스트 `MyGroupBuyIntegrationTest` 6개: 탭 분류·할 일 정렬, 개설한 탭·PURCHASE/PAY, 만료된 결제 대기는 할 일 아님, CANCELED·시드·남의 공구 제외, 대표 사진, 비로그인 401
+
 ### 반경 검색 (T07, T09)
 `WHERE status = 'OPEN' AND MBRContains(:box, location) AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
 반경 박스(MBRContains, 반경 × 1.1)로 먼저 거르고 거리로 정밀 필터해 SPATIAL INDEX를 탄다 (`GroupBuySpatialQuery`)
@@ -337,7 +346,7 @@ CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 
 | POST | /api/group-buys/{id}/pickup-votes | 수령 후보 투표 (optionId), 다시 보내면 변경 (T15) | 결제한 참여자·개설자 |
 | GET | /api/notifications | 내 알림 최근 20개 + 안 읽은 수 (T15) | 회원 |
 | POST | /api/notifications/{id}/read, /api/notifications/read-all | 알림 읽음 (T15) | 본인 |
-| GET | /api/users/me/group-buys | 내 공구 (role=host/participant, status) | 회원 |
+| GET | /api/users/me/group-buys | 내 공구 (S07): `{active, hosting, past}` 한 번에, 카드마다 지금 할 일(todo) | 회원 |
 | POST | /api/inquiries | 문의 등록 | 회원 |
 | GET | /api/inquiries/me | 내 문의 | 회원 |
 | GET | /api/notices | 업데이트 노트 | 공개 |

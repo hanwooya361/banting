@@ -26,21 +26,30 @@ export function Layout() {
       >
         <div className={`mx-auto flex h-14 items-center justify-between px-4 ${fullBleed ? 'max-w-5xl' : 'max-w-3xl'}`}>
           {/* 로그인한 사람에게 로고는 "목록으로", 처음 온 사람에게는 "표지로" */}
-          <Link to={me ? '/group-buys' : '/'} className="flex items-center gap-1.5 text-xl font-bold text-orange-500">
+          <Link to={me ? '/group-buys' : '/'} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xl font-bold text-orange-500">
             <img src="/favicon.svg" alt="" className="h-6 w-6" />
             반띵
           </Link>
-          <nav className="flex items-center gap-3 text-sm">
+          {/* 휴대폰 폭에서도 한 줄: 줄바꿈 금지, 닉네임 대신 "내 정보", 로그아웃은 내 정보 화면으로 */}
+          <nav className="flex items-center gap-2 whitespace-nowrap text-sm sm:gap-3">
             {loading ? null : me ? (
               <>
                 <NotificationBell />
                 <Link to="/group-buys/new" className="rounded-full bg-orange-500 px-3 py-1.5 font-medium text-white">
                   공구 열기
                 </Link>
-                <Link to="/me" className="font-medium hover:underline">
-                  {me.nickname}님
+                <Link to="/me/group-buys" className="font-medium hover:underline">
+                  내 공구
                 </Link>
-                <button type="button" onClick={handleLogout} className="text-gray-500 hover:text-gray-900">
+                <Link to="/me" className="font-medium hover:underline">
+                  <span className="sm:hidden">내 정보</span>
+                  <span className="hidden sm:inline">{me.nickname}님</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="hidden text-gray-500 hover:text-gray-900 sm:inline"
+                >
                   로그아웃
                 </button>
               </>

@@ -36,6 +36,18 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
     @Query("SELECT p FROM Participation p WHERE p.id = :id")
     Optional<Participation> findByIdForUpdate(@Param("id") Long id);
 
+    /**
+     * 내 공구 화면(S07): 내 참여 행과 공구를 한 번에 (최근 참여 순). 결제 대기 만료·결제 전 취소(CANCELED)와 시드 공구는 뺀다.
+     * 반환 원소는 [Participation, GroupBuy].
+     */
+    @Query("""
+            SELECT p, g FROM Participation p, com.banting.groupbuy.GroupBuy g
+            WHERE g.id = p.groupBuyId AND p.userId = :userId AND g.demoType IS NULL
+              AND p.status <> com.banting.participation.ParticipationStatus.CANCELED
+            ORDER BY p.id DESC
+            """)
+    List<Object[]> findMineWithGroupBuy(@Param("userId") Long userId, Pageable pageable);
+
     // ───── 스케줄러 대상 (T14). 시드 공구 제외 ─────
 
     /** 결제 대기가 cutoff 전에 만료된 참여자(개설자 제외: 개설자 대기는 DRAFT 만료가 공구째 정리). 인덱스 (status, expires_at). */
