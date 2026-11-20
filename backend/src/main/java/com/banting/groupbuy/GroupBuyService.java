@@ -10,6 +10,7 @@ import com.banting.groupbuy.GroupBuyDtos.ListItem;
 import com.banting.groupbuy.GroupBuyDtos.ListResponse;
 import com.banting.groupbuy.GroupBuyDtos.PickupOptionRequest;
 import com.banting.groupbuy.GroupBuyDtos.UpdateRequest;
+import com.banting.notification.NotificationService;
 import com.banting.participation.Participation;
 import com.banting.participation.ParticipationRepository;
 import com.banting.participation.ParticipationStatus;
@@ -18,6 +19,7 @@ import com.banting.payment.PaymentStatus;
 import com.banting.payment.RefundService;
 import com.banting.pickup.PickupOption;
 import com.banting.pickup.PickupOptionRepository;
+import com.banting.pickup.PickupService;
 import com.banting.user.User;
 import com.banting.user.UserRepository;
 import java.time.Clock;
@@ -75,6 +77,8 @@ public class GroupBuyService {
     private final ImageStorage imageStorage;
     private final PaymentRepository paymentRepository;
     private final RefundService refundService;
+    private final PickupService pickupService;
+    private final NotificationService notificationService;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final String imageBaseUrl;
@@ -84,6 +88,7 @@ public class GroupBuyService {
                            PickupOptionRepository pickupOptionRepository, UserRepository userRepository,
                            GroupBuySpatialQuery spatialQuery, ImageStorage imageStorage,
                            PaymentRepository paymentRepository, RefundService refundService,
+                           PickupService pickupService, NotificationService notificationService,
                            TransactionTemplate tx, Clock clock,
                            @Value("${banting.images.public-base-url:}") String imageBaseUrl) {
         this.groupBuyRepository = groupBuyRepository;
@@ -95,6 +100,8 @@ public class GroupBuyService {
         this.imageStorage = imageStorage;
         this.paymentRepository = paymentRepository;
         this.refundService = refundService;
+        this.pickupService = pickupService;
+        this.notificationService = notificationService;
         this.tx = tx;
         this.clock = clock;
         this.imageBaseUrl = imageBaseUrl;
@@ -194,6 +201,7 @@ public class GroupBuyService {
             throw new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND);
         }
         User host = userRepository.findById(groupBuy.getHostId()).orElseThrow();
+        PickupService.VoteSummary votes = pickupService.summary(id, viewerId);
         Long myAmount = mine
                 ? participationRepository.findByGroupBuyIdAndHostTrue(id).map(Participation::getAmount).orElse(null)
                 : null;
@@ -208,7 +216,8 @@ public class GroupBuyService {
                         .map(image -> new GroupBuyDtos.Image(image.getKey(), imageBaseUrl + "/" + image.getKey()))
                         .toList(),
                 pickupOptionRepository.findByGroupBuyIdOrderByPickupAtAsc(id).stream()
-                        .map(o -> new GroupBuyDtos.PickupOptionView(o.getId(), o.getPickupAt(), o.getPlaceName()))
+                        .map(o -> new GroupBuyDtos.PickupOptionView(o.getId(), o.getPickupAt(), o.getPlaceName(),
+                                votes.votesByOption().getOrDefault(o.getId(), 0L), o.isSelected()))
                         .toList(),
                 new GroupBuyDtos.HostView(host.getNickname(), host.getRole()),
                 mine, myAmount, groupBuy.isDemo(),
@@ -216,7 +225,8 @@ public class GroupBuyService {
                         .map(p -> new GroupBuyDtos.MyParticipation(p.getId(), p.getStatus(), p.getUnits(), p.getAmount(),
                                 p.isHost(), p.getExpiresAt()))
                         .orElse(null),
-                groupBuy.getFailReason());
+                groupBuy.getFailReason(),
+                votes.myOptionId());
     }
 
     // ───── 개설자 취소 (T12) ─────
@@ -239,9 +249,15 @@ public class GroupBuyService {
                 return;   // 이미 취소됨: 남은 환불만 재시도
             }
             groupBuy.cancelByHost();
+            List<Long> notify = new ArrayList<>();
             for (Participation participation : participationRepository.findByGroupBuyId(id)) {
                 switch (participation.getStatus()) {
-                    case PAID -> participation.requestRefund();
+                    case PAID -> {
+                        participation.requestRefund();
+                        if (!participation.isHost()) {
+                            notify.add(participation.getUserId());   // 취소한 개설자 본인에게는 알리지 않음
+                        }
+                    }
                     case PENDING_PAYMENT -> {
                         participation.cancelPending();
                         paymentRepository.findByParticipationIdAndStatus(participation.getId(), PaymentStatus.READY)
@@ -251,6 +267,7 @@ public class GroupBuyService {
                     }
                 }
             }
+            notificationService.canceledByHost(notify, id, groupBuy.getTitle());   // 같은 트랜잭션 (T15)
         });
 
         int refunded = 0;

@@ -46,6 +46,7 @@ group_buys 1 ─ N group_buy_images
 group_buys 1 ─ N pickup_options 1 ─ N pickup_votes N ─ 1 users
 group_buys 1 ─ 1 settlements
 users 1 ─ N inquiries
+users 1 ─ N notifications N ─ 1 group_buys
 notices (독립)
 ```
 
@@ -130,6 +131,9 @@ id, group_buy_id FK, url VARCHAR(500), sort_order INT
 ### settlements
 id, group_buy_id UNIQUE, host_id, gross_amount, fee_rate DECIMAL(5,4), fee_amount, net_amount, status(PENDING / DONE), settled_at
 
+### notifications (T15, V4)
+id, user_id FK, type(GROUP_BUY_CONFIRMED / GROUP_BUY_FAILED / GROUP_BUY_CANCELED), group_buy_id FK, message VARCHAR(200, 만들 때 완성된 문장), read_at NULL, created_at · 인덱스 (user_id, id) · 30일 지나면 매일 04:10 삭제
+
 ### inquiries / notices
 - inquiries: id, user_id, type(BUG / FEATURE / ETC), title, content, status(OPEN / ANSWERED), answer, answered_at, issue_url(GitHub Issue 링크)
 - notices: id, title, content, created_at
@@ -210,7 +214,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 6. 5가 실패하면(예: 그 사이 공구가 실패 처리됨) 토스 취소 API로 보상 → payment CANCELED(payment_key·사유 기록). 취소마저 실패하면 FAILED + "자동 취소 실패, 수동 확인 필요" + error 로그
 7. 같은 orderId 재요청은 이미 DONE이면 토스를 다시 부르지 않고 그대로 성공 (멱등)
 - 만료된 결제 대기 건의 자리 반환은 스케줄러(T14)가 만료 2분 뒤에 한다. 그 전에 같은 사람이 다시 요청하면 그 자리로 재결제
-- 확정 시 수령 일정 선택(투표 1위)은 투표 티켓에서
+- 확정 시 수령 일정 선택(투표 1위)과 알림은 같은 반영 트랜잭션에서 (T15)
 - 테스트: 가짜 토스 클라이언트로 성공·거절·응답 없음·반영 실패 보상·보상 실패·멱등·만료·금액 불일치, 실제 클라이언트는 로컬 HTTP 서버로 요청 형식 검증
 
 ### 참여 취소·환불 (T12 확정)
@@ -236,6 +240,19 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 - "자동 확정"은 마지막 결제 승인 순간 이미 처리(T11). PICKUP → COMPLETED + 정산은 T16
 - T08 버그 수정: DRAFT 직접 삭제가 T11에서 생긴 결제 대기 주문(payments)을 지우지 않아 개설자가 결제창을 연 뒤 삭제하면 FK 위반(500). 삭제를 `GroupBuyService.deleteDraftRows`로 모아 스케줄러와 함께 씀
 - 테스트 `GroupBuyLifecycleIntegrationTest` 14개: 만료·여유 시간·이중 반환 없음, DRAFT 삭제·돈 기록 있으면 보존, 마감 미달 전원 환불·확정/마감 전/시드 제외, 환불 실패 → 재시도, 이중 환불 없음(토스 취소 호출 수), 실패 처리 사이 도착한 승인 보상, refresh 토큰 정리
+
+### 수령 투표와 확정 알림 (T15 확정)
+- 투표 `POST /api/group-buys/{id}/pickup-votes {optionId}`: 결제 완료(PAID)한 참여자·개설자만, OPEN·마감 전에만. 다시 보내면 같은 행의 후보만 바꿈(UNIQUE(공구, 회원)). 남의 공구 후보 404, 시드 공구 거부
+- 투표는 공구 행을 FOR UPDATE로 잠그고 한다. 결제 승인(확정)도 같은 행을 잠그므로 확정 순간 들어온 표가 반영됐는지 애매하지 않음 (락 순서 공구 → … 는 T13과 같음)
+- 득표는 **지금 PAID·RECEIVED인 사람의 표만** 집계(참여와 조인). 투표 후 취소·환불한 사람의 표는 행을 지우지 않아도 빠지므로 취소·환불 코드가 투표를 몰라도 됨
+- 1위: 득표 많은 순 → 수령 시각이 이른 순 → 먼저 등록한 순. 표가 없으면 가장 이른 후보. 후보가 1개면 화면에서 투표 UI를 숨김
+- 확정(마지막 결제 승인)과 같은 트랜잭션에서 1위 후보 `selected = true` + 결제한 사람 전원(개설자 포함)에게 알림. 확정·수령 일정·알림이 함께 커밋되거나 함께 롤백(롤백되면 토스는 보상 취소)
+- 알림은 인앱만 (이메일·푸시 없음: 도메인·비용·외부 호출 실패 처리 부담). `NotificationService`의 보내기 메서드는 `Propagation.MANDATORY`라 상태 변경 트랜잭션 밖에서 부르면 예외 → "상태는 바뀌었는데 알림이 없는" 불일치를 구조로 막음
+  - 확정: 결제 완료한 전원 / 마감 미달 무산: 결제했던 전원(T14 스케줄러 트랜잭션) / 개설자 취소: 개설자를 뺀 결제 참여자(T12 트랜잭션)
+  - `GET /api/notifications` 최근 20개 + 안 읽은 수, `POST /api/notifications/{id}/read`(남의 알림 404), `POST /api/notifications/read-all`
+  - 화면: 헤더 종 + 안 읽은 수, 페이지 이동 때마다 다시 조회(실시간 연결 없음). 휴대폰에선 목록을 화면 양옆 16px에 고정
+- 상세 응답: `pickupOptions[].voteCount·selected`, `myPickupVoteOptionId`
+- 테스트 `PickupVoteIntegrationTest` 14개: 투표·표 바꾸기·개설자 투표, 결제 전·미참여·남의 후보·확정 후 거부, 취소한 사람 표 제외, 확정 시 1위 저장(완료 조건)·동점·무투표, 미확정이면 선택·알림 없음, 무산·개설자 취소 알림 대상, 알림 조회·읽음·남의 알림 404·비로그인 401
 
 ### 반경 검색 (T07, T09)
 `WHERE status = 'OPEN' AND MBRContains(:box, location) AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
@@ -303,7 +320,9 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 | DELETE | /api/participations/{id} | 마감 전 참여 취소·환불 → {status, refundAmount}. 환불 대기로 남으면 202 (T12) | 본인 |
 | POST | /api/participations/{id}/receive | 수령 확인 | 본인 |
 | POST | /api/payments/confirm | 토스 결제 승인 | 회원 |
-| POST | /api/group-buys/{id}/pickup-votes | 수령 후보 투표 (optionId) | 참여자 |
+| POST | /api/group-buys/{id}/pickup-votes | 수령 후보 투표 (optionId), 다시 보내면 변경 (T15) | 결제한 참여자·개설자 |
+| GET | /api/notifications | 내 알림 최근 20개 + 안 읽은 수 (T15) | 회원 |
+| POST | /api/notifications/{id}/read, /api/notifications/read-all | 알림 읽음 (T15) | 본인 |
 | GET | /api/users/me/group-buys | 내 공구 (role=host/participant, status) | 회원 |
 | POST | /api/inquiries | 문의 등록 | 회원 |
 | GET | /api/inquiries/me | 내 문의 | 회원 |

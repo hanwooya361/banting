@@ -39,7 +39,7 @@ class SchemaMigrationTest {
         assertThat(tables).containsExactlyInAnyOrder(
                 "users", "group_buys", "group_buy_images", "participations", "payments",
                 "pickup_options", "pickup_votes", "settlements", "inquiries", "notices",
-                "refresh_tokens");
+                "refresh_tokens", "notifications");
     }
 
     @Test

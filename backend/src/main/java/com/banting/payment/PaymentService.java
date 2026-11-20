@@ -7,12 +7,16 @@ import com.banting.groupbuy.GroupBuyRepository;
 import com.banting.groupbuy.GroupBuyStatus;
 import com.banting.participation.Participation;
 import com.banting.participation.ParticipationRepository;
+import com.banting.notification.NotificationService;
 import com.banting.participation.ParticipationStatus;
 import com.banting.payment.TossPaymentsClient.Approval;
+import com.banting.pickup.PickupOption;
+import com.banting.pickup.PickupService;
 import com.banting.payment.TossPaymentsClient.TossRejectedException;
 import com.banting.payment.TossPaymentsClient.TossUnavailableException;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,6 +44,8 @@ public class PaymentService {
     private final ParticipationRepository participationRepository;
     private final GroupBuyRepository groupBuyRepository;
     private final TossPaymentsClient toss;
+    private final PickupService pickupService;
+    private final NotificationService notificationService;
     private final TransactionTemplate tx;
     private final Clock clock;
 
@@ -128,7 +134,22 @@ public class PaymentService {
         payment.done(paymentKey, approvedAt);
         participation.pay();
         groupBuy.markPaid(participation.getUnits(), participation.isHost(), LocalDateTime.now(clock));
+        if (groupBuy.getStatus() == GroupBuyStatus.CONFIRMED) {
+            onConfirmed(groupBuy);
+        }
         return response(groupBuy, participation, payment);
+    }
+
+    /**
+     * 정원이 다 차서 확정된 순간 (T15): 투표 1위 후보를 수령 일정으로 저장하고 결제한 사람 전원에게 알린다.
+     * 같은 트랜잭션이라 확정·수령 일정·알림이 함께 커밋되거나 함께 롤백된다 (롤백되면 토스 결제는 보상 취소).
+     */
+    private void onConfirmed(GroupBuy groupBuy) {
+        Optional<PickupOption> pickup = pickupService.selectWinner(groupBuy.getId());
+        notificationService.confirmed(pickupService.paidUserIds(groupBuy.getId()), groupBuy.getId(),
+                groupBuy.getTitle(),
+                pickup.map(PickupOption::getPickupAt).orElse(null),
+                pickup.map(PickupOption::getPlaceName).orElse(null));
     }
 
     private ConfirmResponse alreadyDone(Payment payment, String paymentKey) {

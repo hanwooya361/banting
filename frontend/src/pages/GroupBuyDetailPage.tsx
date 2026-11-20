@@ -5,6 +5,7 @@ import { beforeDeadline, CATEGORY_LABELS, formatDateTime, STATUS_BADGES, won, ty
 import { useAuth } from '../auth/context'
 import { ParticipateSheet } from '../components/ParticipateSheet'
 import { cancelGroupBuy, cancelParticipation, minutesLeft, startPayment } from '../lib/payment'
+import { votePickup } from '../lib/pickup'
 
 export function GroupBuyDetailPage() {
   const { id } = useParams()
@@ -224,16 +225,7 @@ export function GroupBuyDetailPage() {
 
       {g.description ? <p className="whitespace-pre-line text-gray-800">{g.description}</p> : null}
 
-      <section>
-        <h2 className="mb-2 font-semibold">수령 후보</h2>
-        <ul className="flex flex-col gap-2">
-          {g.pickupOptions.map((option) => (
-            <li key={option.id} className="rounded-lg bg-gray-50 px-3 py-2 text-sm">
-              {formatDateTime(option.pickupAt)} · {option.placeName}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <PickupSection groupBuy={g} onVoted={() => setReloadKey((k) => k + 1)} />
 
       {notice ? (
         <p role="status" className="rounded-lg bg-gray-900 px-4 py-3 text-sm text-white">
@@ -401,5 +393,87 @@ function ParticipationBox({
         {full ? `${unitWord === '명' ? '자리' : unitWord}가 다 찼어요` : `참여하기 · ${won(g.unitPrice)}${g.priceType === 'EQUAL' ? '' : `/${g.unitLabel}`}`}
       </button>
     </div>
+  )
+}
+
+// 수령 후보와 투표 (T15). 결제를 마친 참여자·개설자는 모집 중에 투표, 확정되면 1위 후보가 수령 일정
+function PickupSection({ groupBuy: g, onVoted }: { groupBuy: GroupBuyDetail; onVoted: () => void }) {
+  const [voting, setVoting] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const selected = g.pickupOptions.find((o) => o.selected)
+  const several = g.pickupOptions.length > 1
+  const canVote =
+    several && !g.demo && g.status === 'OPEN' && beforeDeadline(g.deadlineAt) && g.myParticipation?.status === 'PAID'
+
+  const handleVote = async (optionId: number) => {
+    setVoting(optionId)
+    setError(null)
+    try {
+      await votePickup(g.id, optionId)
+      onVoted()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '투표하지 못했어요')
+    } finally {
+      setVoting(null)
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-2">
+      {selected ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          <p className="font-semibold">다 모였어요</p>
+          <p className="mt-1">
+            수령 일정: <strong>{formatDateTime(selected.pickupAt)}</strong>, {selected.placeName}
+          </p>
+        </div>
+      ) : null}
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-semibold">수령 후보</h2>
+        {canVote ? <p className="text-xs text-gray-500">편한 일정을 골라 주세요. 다 모이면 1위 일정으로 정해져요</p> : null}
+      </div>
+      <ul className="flex flex-col gap-2">
+        {g.pickupOptions.map((option) => {
+          const mine = g.myPickupVoteOptionId === option.id
+          const label = (
+            <>
+              <span>
+                {formatDateTime(option.pickupAt)} · {option.placeName}
+              </span>
+              {several ? (
+                <span className={`shrink-0 text-xs ${mine ? 'font-semibold text-orange-600' : 'text-gray-500'}`}>
+                  {mine ? '내 선택 · ' : ''}
+                  {option.voteCount}표
+                </span>
+              ) : null}
+            </>
+          )
+          const base = 'flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm'
+          const tone = option.selected
+            ? 'bg-green-50 ring-1 ring-green-300'
+            : mine
+              ? 'bg-orange-50 ring-1 ring-orange-300'
+              : 'bg-gray-50'
+          return (
+            <li key={option.id}>
+              {canVote ? (
+                <button
+                  type="button"
+                  onClick={() => handleVote(option.id)}
+                  disabled={voting !== null || mine}
+                  aria-pressed={mine}
+                  className={`${base} ${tone} hover:ring-1 hover:ring-orange-300 disabled:cursor-default`}
+                >
+                  {voting === option.id ? <span>투표하는 중…</span> : label}
+                </button>
+              ) : (
+                <div className={`${base} ${tone}`}>{label}</div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+    </section>
   )
 }

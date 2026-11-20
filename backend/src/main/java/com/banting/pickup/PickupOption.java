@@ -12,7 +12,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 수령 후보 (개설자가 1~3개 등록). 투표·확정은 T15. */
+/** 수령 후보 (개설자가 1~3개 등록). 공구가 확정되면 1위 후보 하나가 selected = 수령 일정 (T15). */
 @Entity
 @Table(name = "pickup_options")
 @Getter
@@ -41,5 +41,10 @@ public class PickupOption extends BaseTimeEntity {
         option.pickupAt = pickupAt;
         option.placeName = placeName;
         return option;
+    }
+
+    /** 확정 시 수령 일정으로 선택. */
+    public void select() {
+        this.selected = true;
     }
 }

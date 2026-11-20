@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/context'
+import { NotificationBell } from './NotificationBell'
 
 // 표지(S00)는 화면을 가로로 꽉 채우고 헤더를 배경 위에 투명하게 띄운다
 const FULL_BLEED_PATHS = ['/', '/intro']
@@ -32,6 +33,7 @@ export function Layout() {
           <nav className="flex items-center gap-3 text-sm">
             {loading ? null : me ? (
               <>
+                <NotificationBell />
                 <Link to="/group-buys/new" className="rounded-full bg-orange-500 px-3 py-1.5 font-medium text-white">
                   공구 열기
                 </Link>

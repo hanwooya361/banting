@@ -1,5 +1,6 @@
 package com.banting.groupbuy;
 
+import com.banting.notification.NotificationService;
 import com.banting.participation.Participation;
 import com.banting.participation.ParticipationRepository;
 import com.banting.payment.PaymentRepository;
@@ -40,6 +41,7 @@ public class GroupBuyLifecycleService {
     private final PaymentRepository paymentRepository;
     private final GroupBuyService groupBuyService;
     private final RefundService refundService;
+    private final NotificationService notificationService;
     private final TransactionTemplate tx;
     private final Clock clock;
 
@@ -129,6 +131,9 @@ public class GroupBuyLifecycleService {
                 }
             }
         }
+        List<Long> paidUserIds = participationRepository.findAllById(toRefund).stream()
+                .map(Participation::getUserId).toList();
+        notificationService.failedByDeadline(paidUserIds, groupBuyId, groupBuy.getTitle());   // 같은 트랜잭션 (T15)
         return toRefund;
     }
 

@@ -55,6 +55,14 @@ public enum ErrorCode {
     CANNOT_REJOIN(HttpStatus.CONFLICT, "취소한 공구에는 다시 참여할 수 없어요"),
     PARTICIPATION_PENDING(HttpStatus.CONFLICT, "결제를 기다리는 참여가 있어요. 같은 수량으로 결제를 이어 가 주세요"),
     PARTICIPATION_CHANGED(HttpStatus.CONFLICT, "참여 상태가 방금 바뀌었어요. 다시 시도해 주세요"),
+
+    // 수령 투표 (T15)
+    PICKUP_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "수령 후보를 찾을 수 없어요"),
+    PICKUP_VOTE_NOT_ALLOWED(HttpStatus.FORBIDDEN, "결제를 마친 참여자만 투표할 수 있어요"),
+    PICKUP_VOTE_CLOSED(HttpStatus.CONFLICT, "투표가 끝났어요"),
+
+    // 알림 (T15)
+    NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없어요"),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 정보를 찾을 수 없어요"),
     PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액이 맞지 않아요"),
     PAYMENT_EXPIRED(HttpStatus.CONFLICT, "결제 시간이 지났어요. 다시 참여해 주세요"),
