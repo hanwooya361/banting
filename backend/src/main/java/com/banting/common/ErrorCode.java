@@ -61,6 +61,11 @@ public enum ErrorCode {
     PICKUP_VOTE_NOT_ALLOWED(HttpStatus.FORBIDDEN, "결제를 마친 참여자만 투표할 수 있어요"),
     PICKUP_VOTE_CLOSED(HttpStatus.CONFLICT, "투표가 끝났어요"),
 
+    // 구매·수령 확인 (T16)
+    GROUP_BUY_NOT_PURCHASABLE(HttpStatus.CONFLICT, "확정된 공구만 구매 완료로 바꿀 수 있어요"),
+    RECEIVE_NOT_READY(HttpStatus.CONFLICT, "개설자가 상품을 산 뒤에 확인할 수 있어요"),
+    RECEIVE_NOT_ALLOWED(HttpStatus.CONFLICT, "수령 확인을 할 수 없는 참여예요"),
+
     // 알림 (T15)
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "알림을 찾을 수 없어요"),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 정보를 찾을 수 없어요"),

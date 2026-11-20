@@ -95,7 +95,12 @@ public final class GroupBuyDtos {
             boolean demo,
             MyParticipation myParticipation,
             GroupBuy.FailReason failReason,
-            Long myPickupVoteOptionId) {   // 내가 투표한 수령 후보 (T15), 안 했으면 null
+            Long myPickupVoteOptionId,     // 내가 투표한 수령 후보 (T15), 안 했으면 null
+            SettlementView settlement) {   // 개설자에게만, 완료된 공구의 정산 기록 (T16)
+    }
+
+    public record SettlementView(long grossAmount, long feeAmount, long netAmount,
+                                 com.banting.settlement.SettlementStatus status) {
     }
 
     /** 보는 사람의 참여 (없으면 null). 결제 대기면 expiresAt까지 결제를 이어 갈 수 있다. */

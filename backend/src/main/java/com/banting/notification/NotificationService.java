@@ -68,6 +68,20 @@ public class NotificationService {
                 "'%s' 공구를 개설자가 취소했어요. 결제한 금액은 전액 환불돼요.".formatted(shorten(title)));
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void purchased(Collection<Long> userIds, Long groupBuyId, String title, LocalDateTime pickupAt,
+                          String placeName) {
+        String pickup = pickupAt == null ? "" : " %s · %s".formatted(PICKUP_FORMAT.format(pickupAt), placeName);
+        send(userIds, NotificationType.GROUP_BUY_PURCHASED, groupBuyId,
+                "'%s' 개설자가 상품을 샀어요. 약속 장소에서 만나요.%s".formatted(shorten(title), pickup));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void completed(Long hostId, Long groupBuyId, String title, long netAmount, long feeAmount) {
+        send(java.util.List.of(hostId), NotificationType.GROUP_BUY_COMPLETED, groupBuyId,
+                "'%s' 공구가 완료됐어요. 정산 예정 %,d원 (수수료 %,d원)".formatted(shorten(title), netAmount, feeAmount));
+    }
+
     private void send(Collection<Long> userIds, NotificationType type, Long groupBuyId, String message) {
         notificationRepository.saveAll(userIds.stream().distinct()
                 .map(userId -> Notification.of(userId, type, groupBuyId, message)).toList());

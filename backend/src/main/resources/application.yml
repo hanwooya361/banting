@@ -35,6 +35,9 @@ banting:
   participation:
     # 마지막 자리 잡는 방식 (T13 비교): CONDITIONAL(조건부 UPDATE, 기본) / PESSIMISTIC(SELECT … FOR UPDATE)
     seat-lock: CONDITIONAL
+  settlement:
+    # 정산 수수료 (만분율, 300 = 3%). 개설자 정산 총액에서 떼고 원 단위 내림 (T16)
+    fee-bps: 300
   scheduler:
     # 결제 대기 만료·마감 미달 환불·refresh 토큰 정리 (T14). 테스트에선 꺼 둠 (local·prod에서 켬)
     enabled: false

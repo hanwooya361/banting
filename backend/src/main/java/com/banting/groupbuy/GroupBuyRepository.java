@@ -55,4 +55,13 @@ public interface GroupBuyRepository extends JpaRepository<GroupBuy, Long> {
             ORDER BY g.id
             """)
     List<Long> findExpiredDraftIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
+
+    /** 수령 일정(확정 때 고른 후보)이 cutoff 이전인 수령 대기 공구 (T16 자동 완료). */
+    @Query("""
+            SELECT g.id FROM GroupBuy g, com.banting.pickup.PickupOption o
+            WHERE o.groupBuyId = g.id AND o.selected = TRUE
+              AND g.status = com.banting.groupbuy.GroupBuyStatus.PICKUP AND g.demoType IS NULL AND o.pickupAt < :cutoff
+            ORDER BY o.pickupAt
+            """)
+    List<Long> findOverduePickupIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
 }

@@ -114,6 +114,13 @@ public class Participation extends BaseTimeEntity {
         this.status = ParticipationStatus.REFUNDED;
     }
 
+    /** 참여자 "받았어요" (T16). */
+    public void receive(LocalDateTime now) {
+        require(ParticipationStatus.PAID);
+        this.status = ParticipationStatus.RECEIVED;
+        this.receivedAt = now;
+    }
+
     public boolean isRefundPending() {
         return status == ParticipationStatus.REFUND_PENDING;
     }

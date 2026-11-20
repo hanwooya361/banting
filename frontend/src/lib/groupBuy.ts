@@ -42,6 +42,8 @@ export type GroupBuyDetail = {
   } | null
   failReason: 'DEADLINE_UNMET' | 'HOST_CANCELED' | null
   myPickupVoteOptionId: number | null // 내가 투표한 수령 후보 (T15)
+  // 개설자에게만, 완료된 공구의 정산 기록 (T16). 실제 송금은 하지 않고 기록만
+  settlement: { grossAmount: number; feeAmount: number; netAmount: number; status: 'PENDING' | 'DONE' } | null
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {
