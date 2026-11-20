@@ -25,7 +25,8 @@ export type GroupBuyDetail = {
   deadlineAt: string
   createdAt: string
   images: { key: string; url: string }[]
-  pickupOptions: { id: number; pickupAt: string; placeName: string }[]
+  // voteCount = 지금 결제 완료인 사람의 표, selected = 확정 시 고른 수령 일정 (T15)
+  pickupOptions: { id: number; pickupAt: string; placeName: string; voteCount: number; selected: boolean }[]
   host: { nickname: string }
   mine: boolean
   myAmount: number | null
@@ -40,6 +41,7 @@ export type GroupBuyDetail = {
     expiresAt: string
   } | null
   failReason: 'DEADLINE_UNMET' | 'HOST_CANCELED' | null
+  myPickupVoteOptionId: number | null // 내가 투표한 수령 후보 (T15)
 }
 
 export const CATEGORY_LABELS: Record<Category, string> = {

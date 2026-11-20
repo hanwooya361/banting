@@ -94,7 +94,8 @@ public final class GroupBuyDtos {
             Long myAmount,
             boolean demo,
             MyParticipation myParticipation,
-            GroupBuy.FailReason failReason) {
+            GroupBuy.FailReason failReason,
+            Long myPickupVoteOptionId) {   // 내가 투표한 수령 후보 (T15), 안 했으면 null
     }
 
     /** 보는 사람의 참여 (없으면 null). 결제 대기면 expiresAt까지 결제를 이어 갈 수 있다. */
@@ -140,7 +141,9 @@ public final class GroupBuyDtos {
     public record Image(String key, String url) {
     }
 
-    public record PickupOptionView(Long id, LocalDateTime pickupAt, String placeName) {
+    /** voteCount = 지금 결제 완료인 사람의 표만 (T15). selected = 확정 시 고른 수령 일정. */
+    public record PickupOptionView(Long id, LocalDateTime pickupAt, String placeName, long voteCount,
+                                   boolean selected) {
     }
 
     public record HostView(String nickname, Role role) {
