@@ -209,7 +209,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 5. 성공 → 짧은 트랜잭션: 공구 → 참여 → 결제 순서로 행을 잠그고 payment DONE, participation PAID, paid_units 증가, 개설자면 DRAFT → OPEN, 정원이 차면 CONFIRMED
 6. 5가 실패하면(예: 그 사이 공구가 실패 처리됨) 토스 취소 API로 보상 → payment CANCELED(payment_key·사유 기록). 취소마저 실패하면 FAILED + "자동 취소 실패, 수동 확인 필요" + error 로그
 7. 같은 orderId 재요청은 이미 DONE이면 토스를 다시 부르지 않고 그대로 성공 (멱등)
-- 만료된 결제 대기 건의 자리 반환은 스케줄러(T14) 몫. 그 전까지는 만료된 대기 건이 자리를 차지할 수 있다 (같은 사람이 다시 요청하면 그 자리로 재결제)
+- 만료된 결제 대기 건의 자리 반환은 스케줄러(T14)가 만료 2분 뒤에 한다. 그 전에 같은 사람이 다시 요청하면 그 자리로 재결제
 - 확정 시 수령 일정 선택(투표 1위)은 투표 티켓에서
 - 테스트: 가짜 토스 클라이언트로 성공·거절·응답 없음·반영 실패 보상·보상 실패·멱등·만료·금액 불일치, 실제 클라이언트는 로컬 HTTP 서버로 요청 형식 검증
 
@@ -222,10 +222,20 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 - 개설자 취소 `POST /api/group-buys/{id}/cancel`: 모집 중만 → FAILED(HOST_CANCELED). 한 트랜잭션에서 PAID는 전부 REFUND_PENDING, 결제 대기는 CANCELED → 토스 취소는 한 건씩. 일부 실패 시 202 + 남은 수, 다시 요청하면 남은 건만 재시도. 무산된 공구의 reserved·paid는 기록으로 그대로 둔다
 - 환불 한 건 처리는 `RefundService.refund(participationId)` 하나로 모아 T14(마감 실패 환불, 재시도)도 같은 경로를 쓴다
 
-### 스케줄러 (T14)
-- 1분마다: (1) expires_at 지난 PENDING_PAYMENT → CANCELED, reserved_units 반환 (2) deadline_at 지난 OPEN → FAILED + 환불 (3) 확정 후 3일 지난 PICKUP → COMPLETED + 정산
-- 환불은 참여 건별로 처리하고 상태로 진행도를 남겨, 중간에 멈춰도 다시 돌면 남은 건만 처리 (멱등)
-- 서버 1대 기준. 여러 대가 되면 ShedLock 도입
+### 스케줄러 (T14 확정)
+- `GroupBuyScheduler`(실행만) → `GroupBuyLifecycleService`(로직). `banting.scheduler.enabled=true`일 때만 등록 (local·prod 켬, 테스트 꺼짐: 몰래 돌아 다른 테스트 데이터를 바꾸지 않게)
+- 1분마다 (fixedDelay, 시작 30초 후)
+  1. 결제 대기 만료: 참여자 PENDING_PAYMENT → CANCELED, 자리 반환, READY 주문 FAILED
+  2. 개설 대기 만료: 개설자 결제 대기가 만료된 DRAFT 삭제(사진·수령 후보·결제 대기 주문 포함, 사진 파일은 커밋 후). 돈이 오간 기록(DONE·CANCELED 결제)이 있으면 지우지 않고 error 로그(수동 확인)
+  3. 마감 미달: OPEN → FAILED(DEADLINE_UNMET). PAID는 REFUND_PENDING, PENDING은 CANCELED(+READY 주문 FAILED) → 트랜잭션 밖에서 `RefundService`로 한 건씩 토스 취소. 자리 수는 기록으로 둠
+- 10분마다: 남은 REFUND_PENDING 재시도 (마감 실패·참여 취소·개설자 취소 모두). 토스가 계속 실패할 때 1분마다 두드리지 않게 주기를 나눔
+- 매일 04:00: 만료된 refresh 토큰 삭제. 폐기됐어도 만료 전이면 남김 (재사용 시 탈취 감지에 필요)
+- **여유 2분** (만료·마감 시각 + 2분이 지난 건만 처리): 결제 승인은 "만료·마감 전" 확인 뒤 토스 응답까지 최대 33초(연결 3 + 응답 30). 그 사이 끼어들면 READY 주문이 먼저 FAILED가 되어 뒤따르는 보상 취소가 결제 키·CANCELED를 기록하지 못한다(돈은 돌려주지만 기록이 빔). 화면·결제 확인은 마감 시각에 바로 막히므로 사용자 영향 없음
+- 멱등: 대상은 ID만 100건씩 조회 → 한 건씩 짧은 트랜잭션에서 공구 → 참여 순으로 잠그고 상태 재확인 후 변경. 중간에 멈추거나 한 건이 예외여도 다음 실행에서 남은 건만 처리. 같은 트랜잭션에서 일반 조회 후 잠금 조회를 하면 Hibernate가 캐시된 옛 값을 돌려주므로 잠금 조회로 처음 읽음
+- 시드 공구(`demo_type`)는 제외. 서버 1대 기준(스케줄러 스레드 하나라 작업끼리 겹치지 않음). 여러 대가 되면 ShedLock
+- "자동 확정"은 마지막 결제 승인 순간 이미 처리(T11). PICKUP → COMPLETED + 정산은 T16
+- T08 버그 수정: DRAFT 직접 삭제가 T11에서 생긴 결제 대기 주문(payments)을 지우지 않아 개설자가 결제창을 연 뒤 삭제하면 FK 위반(500). 삭제를 `GroupBuyService.deleteDraftRows`로 모아 스케줄러와 함께 씀
+- 테스트 `GroupBuyLifecycleIntegrationTest` 14개: 만료·여유 시간·이중 반환 없음, DRAFT 삭제·돈 기록 있으면 보존, 마감 미달 전원 환불·확정/마감 전/시드 제외, 환불 실패 → 재시도, 이중 환불 없음(토스 취소 호출 수), 실패 처리 사이 도착한 승인 보상, refresh 토큰 정리
 
 ### 반경 검색 (T07, T09)
 `WHERE status = 'OPEN' AND MBRContains(:box, location) AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
@@ -311,7 +321,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
   - rotation: 재발급마다 기존 토큰 폐기 후 새로 발급. 폐기는 조건부 UPDATE(`revoked_at IS NULL`)로 원자적으로 해서 동시 요청 중 하나만 성공. 폐기된 토큰이 다시 오면 탈취로 보고 그 회원의 refresh 전부 폐기(모든 기기 로그아웃). 이 폐기는 예외를 던져도 커밋되도록 `noRollbackFor`
   - 프론트는 동시에 필요한 refresh를 한 요청으로 묶는다 (React StrictMode 이중 실행이나 여러 API의 동시 401이 "재사용"으로 오인되지 않게). 같은 브라우저의 여러 탭이 동시에 새로고침하면 오인될 수 있음 → 문제가 되면 짧은 유예 시간 도입 검토
   - 로그인 실패는 이메일 없음·비밀번호 틀림·탈퇴를 같은 오류로, 없는 이메일도 BCrypt 비교를 한 번 해서 응답 시간 차이를 줄임
-  - 남은 일: 로그인 시도 횟수 제한(T18), 만료된 refresh 행 정리(T14 스케줄러)
+  - 남은 일: 로그인 시도 횟수 제한(T18), 만료된 refresh 행 정리(T14 완료)
 - 비밀 값(DB 비밀번호, JWT 키, 토스 시크릿 키, AWS 키)은 GitHub Secrets와 EC2 `.env`에만, 저장소에 커밋 금지
 - 외부 API 키(카카오 등)는 AWS Parameter Store `/banting/prod/*`(SecureString)에 콘솔로 직접 입력 → 배포 때 `deploy.sh`가 서버 `.env`로 반영. 로컬은 gitignore된 `backend/application-secret.yml`
 - 토스 시크릿 키는 서버에서만 사용. 로컬 `application-secret.yml`, 운영 Parameter Store `/banting/prod/toss-secret-key` → `.env`의 `TOSS_SECRET_KEY`. 지금은 토스 문서 공개 테스트 키(결제위젯용), 내 테스트 키로 바꿀 땐 값만 교체. 클라이언트 키는 공개용이라 프론트 빌드 설정에 둔다
@@ -336,7 +346,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 | T11 | 참여 = 결제 (토스 테스트) | 개설자·참여자 결제 승인, 실패 시 보상 취소 |
 | T12 | 참여 취소·환불 | 마감 전 취소 시 결제 취소와 상태 변경 |
 | T13 | 마지막 자리 동시성 | k6 동시 100명 정원 초과 0건, 방식 비교 기록 (Redis는 검토 후 제외) |
-| T14 | 스케줄러: 결제 대기 만료, 자동 확정·환불 | 중간에 멈춰도 다시 돌면 이어서 처리(멱등) |
+| T14 | 스케줄러: 결제 대기 만료, 마감 미달 환불 | 중간에 멈춰도 다시 돌면 이어서 처리(멱등). 자동 확정은 T11, 정산은 T16 |
 | T15 | 수령 후보·투표·확정 알림 | 확정 시 1위 일정이 수령 일정으로 저장 |
 | T16 | 수령 확인·정산(수수료 차감) | 전원 확인 또는 기한 경과 시 정산 기록 |
 | T16.5 | 체험 모드 (봇 참여자) | 혼자서 참여·테스트 결제 → 자동 확정 → 투표 → 수령 → 정산까지 1~2분 안에 완료, 실제 목록·통계와 격리 |

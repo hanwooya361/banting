@@ -50,6 +50,9 @@ public class GroupBuyService {
 
     static final Duration PAYMENT_WINDOW = Duration.ofMinutes(10);
     static final Duration MAX_PICKUP_AFTER_DEADLINE = Duration.ofDays(14);
+    /** 돈이 오간 결제 상태. 이 기록이 있으면 공구를 지우지 않는다. */
+    private static final Set<PaymentStatus> MONEY_MOVED = EnumSet.of(PaymentStatus.DONE, PaymentStatus.CANCELED);
+
     private static final Set<ParticipationStatus> OCCUPYING =
             EnumSet.of(ParticipationStatus.PENDING_PAYMENT, ParticipationStatus.PAID);
     private static final Pattern IMAGE_FILE = Pattern.compile("[0-9a-f\\-]{36}\\.(jpg|png|webp)");
@@ -317,16 +320,41 @@ public class GroupBuyService {
             groupBuy.checkHost(userId);
             groupBuy.checkDeletable();
             ensureNoOtherParticipants(id);
-
-            List<String> keys = imageRepository.findByGroupBuyIdOrderBySortOrderAsc(id).stream()
-                    .map(GroupBuyImage::getKey).toList();
-            imageRepository.deleteByGroupBuyId(id);
-            pickupOptionRepository.deleteByGroupBuyId(id);
-            participationRepository.deleteByGroupBuyId(id);   // DRAFT라 개설자 결제 대기 건만 있음
-            groupBuyRepository.delete(groupBuy);
+            List<String> keys = deleteDraftRows(groupBuy);
+            if (keys == null) {
+                throw new BusinessException(ErrorCode.GROUP_BUY_NOT_DELETABLE);
+            }
             return keys;
         });
         deleteQuietly(imageKeys);
+    }
+
+    /**
+     * 개설 대기(DRAFT) 공구와 딸린 행 삭제. 직접 삭제(위)와 결제 시간 초과(T14 스케줄러)가 함께 쓴다.
+     * 공구 행을 FOR UPDATE로 잠근 트랜잭션 안에서만 부른다. 사진 파일은 커밋 후 호출 쪽이 지운다.
+     *
+     * <p>개설자가 결제창을 열면 결제 대기 주문(payments)이 생기므로 참여 행보다 먼저 지운다 (FK RESTRICT).
+     * 돈이 오간 기록(승인 DONE·보상 취소 CANCELED)이 있으면 추적할 수 있게 지우지 않고 null.
+     *
+     * @return 커밋 후 지울 사진 키, 지우지 않았으면 null
+     */
+    List<String> deleteDraftRows(GroupBuy groupBuy) {
+        Long id = groupBuy.getId();
+        List<Participation> participations = participationRepository.findByGroupBuyId(id);
+        for (Participation participation : participations) {
+            if (paymentRepository.existsByParticipationIdAndStatusIn(participation.getId(), MONEY_MOVED)) {
+                log.error("돈이 오간 결제 기록이 있어 개설 대기 공구를 지우지 않음(수동 확인) groupBuyId={}", id);
+                return null;
+            }
+        }
+        List<String> keys = imageRepository.findByGroupBuyIdOrderBySortOrderAsc(id).stream()
+                .map(GroupBuyImage::getKey).toList();
+        imageRepository.deleteByGroupBuyId(id);
+        pickupOptionRepository.deleteByGroupBuyId(id);
+        participations.forEach(participation -> paymentRepository.deleteByParticipationId(participation.getId()));
+        participationRepository.deleteByGroupBuyId(id);   // DRAFT라 개설자 결제 대기 건만 있음
+        groupBuyRepository.delete(groupBuy);
+        return keys;
     }
 
     // ───── 내부 ─────
@@ -401,7 +429,7 @@ public class GroupBuyService {
     }
 
     /** S3 정리는 실패해도 사용자 요청을 실패시키지 않는다 (로그로 남겨 나중에 정리). */
-    private void deleteQuietly(Iterable<String> keys) {
+    void deleteQuietly(Iterable<String> keys) {
         for (String key : keys) {
             try {
                 imageStorage.delete(key);

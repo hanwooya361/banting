@@ -18,5 +18,7 @@ banting:
     public-base-url: https://d3i3a9qd0hlqm6.cloudfront.net
     # 로컬 S3 자격 증명: aws login 세션에서 임시 키를 꺼내 쓰고 만료 전 자동 갱신 (aws가 PATH에 있어야 함)
     credentials-process: aws configure export-credentials --format process
+  scheduler:
+    enabled: true
   demo:
     seed: true
