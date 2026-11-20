@@ -42,6 +42,7 @@ public class GroupBuyLifecycleService {
     private final GroupBuyService groupBuyService;
     private final RefundService refundService;
     private final NotificationService notificationService;
+    private final GroupBuyCompletionService completionService;
     private final TransactionTemplate tx;
     private final Clock clock;
 
@@ -135,6 +136,13 @@ public class GroupBuyLifecycleService {
                 .map(Participation::getUserId).toList();
         notificationService.failedByDeadline(paidUserIds, groupBuyId, groupBuy.getTitle());   // 같은 트랜잭션 (T15)
         return toRefund;
+    }
+
+    /** ⑥ 수령 일정 + 3일이 지난 PICKUP 공구 완료 + 정산 (T16). 받았어요를 안 누른 사람이 있어도. @return 완료 건수 */
+    public int completeOverduePickups() {
+        LocalDateTime cutoff = LocalDateTime.now(clock).minus(GroupBuyCompletionService.AUTO_COMPLETE_AFTER_PICKUP);
+        return forEach(groupBuyRepository.findOverduePickupIds(cutoff, BATCH), "수령 기한 경과 완료",
+                id -> completionService.completeOverdue(id, cutoff));
     }
 
     /** ④ 남은 환불 재시도 (마감 실패·참여 취소·개설자 취소에서 토스 취소가 실패한 건). @return 환불 완료 건수 */

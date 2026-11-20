@@ -340,6 +340,29 @@ public class GroupBuy extends BaseTimeEntity {
         failReason = FailReason.DEADLINE_UNMET;
     }
 
+    // ───── 구매·완료 (T16) ─────
+
+    /** 개설자 "구매했어요": CONFIRMED → PICKUP. */
+    public void markPurchased() {
+        if (status != GroupBuyStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_PURCHASABLE);
+        }
+        status = GroupBuyStatus.PICKUP;
+    }
+
+    /** 참여자 전원 수령 확인 또는 수령 일정 + 3일 경과: PICKUP → COMPLETED. 정산 기록은 서비스가 같은 트랜잭션에서. */
+    public void complete(LocalDateTime now) {
+        if (status != GroupBuyStatus.PICKUP) {
+            throw new IllegalStateException("완료는 PICKUP에서만: " + status);
+        }
+        status = GroupBuyStatus.COMPLETED;
+        completedAt = now;
+    }
+
+    public boolean isPickup() {
+        return status == GroupBuyStatus.PICKUP;
+    }
+
     public boolean isOpen() {
         return status == GroupBuyStatus.OPEN;
     }

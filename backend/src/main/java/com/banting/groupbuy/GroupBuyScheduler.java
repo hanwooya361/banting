@@ -19,12 +19,13 @@ public class GroupBuyScheduler {
 
     private final GroupBuyLifecycleService lifecycle;
 
-    /** 1분마다: ① 결제 대기 만료 ② 개설 대기 만료 ③ 마감 미달 실패 + 환불. */
+    /** 1분마다: ① 결제 대기 만료 ② 개설 대기 만료 ③ 마감 미달 실패 + 환불 ⑥ 수령 기한 경과 완료 + 정산. */
     @Scheduled(fixedDelayString = "PT1M", initialDelayString = "PT30S")
     public void everyMinute() {
         lifecycle.expirePendingPayments();
         lifecycle.expireDrafts();
         lifecycle.failOverdueGroupBuys();
+        lifecycle.completeOverduePickups();
     }
 
     /** 10분마다: ④ 남은 환불 재시도. 토스가 계속 실패할 때 1분마다 두드리지 않게 주기를 나눴다. */

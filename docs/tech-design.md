@@ -129,7 +129,7 @@ id, group_buy_id FK, url VARCHAR(500), sort_order INT
 - pickup_votes: id, group_buy_id, pickup_option_id FK, user_id FK, UNIQUE(group_buy_id, user_id) — 공구당 1표, 다시 투표하면 변경
 
 ### settlements
-id, group_buy_id UNIQUE, host_id, gross_amount, fee_rate DECIMAL(5,4), fee_amount, net_amount, status(PENDING / DONE), settled_at
+id, group_buy_id UNIQUE, host_id, gross_amount, fee_rate DECIMAL(5,4), fee_amount, net_amount, status(PENDING / DONE), settled_at · 계산과 시점은 4장 "수령 확인과 정산"
 
 ### notifications (T15, V4)
 id, user_id FK, type(GROUP_BUY_CONFIRMED / GROUP_BUY_FAILED / GROUP_BUY_CANCELED), group_buy_id FK, message VARCHAR(200, 만들 때 완성된 문장), read_at NULL, created_at · 인덱스 (user_id, id) · 30일 지나면 매일 04:10 삭제
@@ -149,7 +149,7 @@ id, user_id FK, type(GROUP_BUY_CONFIRMED / GROUP_BUY_FAILED / GROUP_BUY_CANCELED
 | OPEN | 마감 시각 경과 & 미달 | FAILED(DEADLINE_UNMET) | 전원 결제 취소 |
 | OPEN | 개설자 취소 | FAILED(HOST_CANCELED) | 전원 결제 취소 |
 | CONFIRMED | 개설자 "구매했어요" | PICKUP | |
-| PICKUP | 전원 수령 확인 또는 확정 후 3일 경과 | COMPLETED | 정산 기록 생성 |
+| PICKUP | 참여자 전원 수령 확인 또는 **수령 일정 + 3일** 경과 (T16에서 "확정 후 3일"을 바꿈: 수령일이 마감 후 최대 14일이라 받기 전에 정산될 수 있었음) | COMPLETED | 정산 기록 생성 |
 
 - 확정 이후 참여 취소 불가 (확정 = 개설자가 살 수 있는 상태)
 - 전이는 엔티티 메서드(`open()`, `confirm()`, `fail(reason)` 등)에서만 하고, 허용되지 않은 전이는 예외
@@ -253,6 +253,20 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
   - 화면: 헤더 종 + 안 읽은 수, 페이지 이동 때마다 다시 조회(실시간 연결 없음). 휴대폰에선 목록을 화면 양옆 16px에 고정
 - 상세 응답: `pickupOptions[].voteCount·selected`, `myPickupVoteOptionId`
 - 테스트 `PickupVoteIntegrationTest` 14개: 투표·표 바꾸기·개설자 투표, 결제 전·미참여·남의 후보·확정 후 거부, 취소한 사람 표 제외, 확정 시 1위 저장(완료 조건)·동점·무투표, 미확정이면 선택·알림 없음, 무산·개설자 취소 알림 대상, 알림 조회·읽음·남의 알림 404·비로그인 401
+
+### 수령 확인과 정산 (T16 확정)
+```
+CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 "받았어요" ───────▶ COMPLETED + 정산 기록
+                                            └ 수령 일정 + 3일 경과 (스케줄러) ▶ COMPLETED + 정산 기록
+```
+- `POST /api/group-buys/{id}/purchased`: 개설자만, CONFIRMED만 → PICKUP + 결제 유지 중인 참여자에게 알림
+- `POST /api/participations/{id}/receive`: 본인만, PAID → RECEIVED(received_at). 공구가 PICKUP·COMPLETED일 때 (자동 완료 뒤 늦게 눌러도 기록, 수령 확인율용). 개설자 몫은 대상 아님(409), 두 번 누르면 그대로. 이걸로 참여자 전원(개설자 제외)이 받았고 공구가 PICKUP이면 같은 트랜잭션에서 완료
+- 스케줄러 ⑥(1분): PICKUP이고 선택된 수령 일정 + 3일이 지난 공구 완료. 확인 안 한 참여는 PAID 그대로 둠. 개설자가 "구매했어요"를 누르지 않은 CONFIRMED는 자동 완료하지 않음(미구매는 당사자 간 문제, 신고는 이후)
+- 완료 = 공구 행 잠금 → PICKUP 재확인 → COMPLETED(completed_at) + 정산 기록 + 개설자 알림을 한 트랜잭션에서. 마지막 받았어요와 스케줄러가 동시에 와도 공구 행 잠금으로 한 줄로 서고 뒤에 온 쪽은 이미 완료를 보고 아무것도 안 함. `UNIQUE(group_buy_id)`가 마지막 방어선. `SettlementService.record`는 `Propagation.MANDATORY`
+- 정산 금액: 총액 = PAID·RECEIVED 참여 금액 합(정원이 찼으니 공구 총가와 같음). 수수료 = 총액 × `banting.settlement.fee-bps`(300 = 3%) / 10000 **내림**(개설자에게 유리), 정산액 = 총액 − 수수료. double(0.03)이 아니라 만분율 정수 곱셈(`Math.multiplyExact`)이라 오차 없음. `fee_rate`에는 기록용 0.0300(BigDecimal). 수수료는 개설자 몫을 포함한 총액 전체에 매김(PRD 기본안)
+- 정산은 기록까지만: status PENDING, 실제 송금(DONE)은 구현하지 않음
+- 상세 응답 `settlement`(개설자에게만): gross·fee·net·status
+- 테스트: `FeePolicyTest` 10개(내림·합계·0%·100%·넘침·범위), `ReceiveSettlementIntegrationTest` 15개(구매했어요 권한·상태, 받았어요 전·남의 것·개설자 몫·두 번, 전원 수령 → 완료·정산 30,000/900/29,100, 기한 경과 자동 완료·기한 전·미구매 제외·두 번·자동 완료 후 받았어요·시드 제외, **마지막 받았어요와 자동 완료 동시 → 정산 1건**, 정산은 개설자에게만)
 
 ### 반경 검색 (T07, T09)
 `WHERE status = 'OPEN' AND MBRContains(:box, location) AND ST_Distance_Sphere(location, :myPoint) <= :radius ORDER BY deadline_at`
@@ -367,7 +381,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 | T13 | 마지막 자리 동시성 | k6 동시 100명 정원 초과 0건, 방식 비교 기록 (Redis는 검토 후 제외) |
 | T14 | 스케줄러: 결제 대기 만료, 마감 미달 환불 | 중간에 멈춰도 다시 돌면 이어서 처리(멱등). 자동 확정은 T11, 정산은 T16 |
 | T15 | 수령 후보·투표·확정 알림 | 확정 시 1위 일정이 수령 일정으로 저장 |
-| T16 | 수령 확인·정산(수수료 차감) | 전원 확인 또는 기한 경과 시 정산 기록 |
+| T16 | 수령 확인·정산(수수료 차감) | 전원 확인 또는 기한(수령 일정 + 3일) 경과 시 정산 기록 |
 | T16.5 | 체험 모드 (봇 참여자) | 혼자서 참여·테스트 결제 → 자동 확정 → 투표 → 수령 → 정산까지 1~2분 안에 완료, 실제 목록·통계와 격리 |
 | T17 | 문의 게시판, 업데이트 노트, 중개자 고지 | 문의 등록·관리자 답변 동작, 푸터 고지 |
 | T18 | 운영 준비: Sentry, 실사용자 모집 | 에러 알림 수신, 첫 외부 사용자 가입 |

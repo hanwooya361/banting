@@ -20,6 +20,7 @@ import com.banting.payment.RefundService;
 import com.banting.pickup.PickupOption;
 import com.banting.pickup.PickupOptionRepository;
 import com.banting.pickup.PickupService;
+import com.banting.settlement.SettlementService;
 import com.banting.user.User;
 import com.banting.user.UserRepository;
 import java.time.Clock;
@@ -79,6 +80,7 @@ public class GroupBuyService {
     private final RefundService refundService;
     private final PickupService pickupService;
     private final NotificationService notificationService;
+    private final SettlementService settlementService;
     private final TransactionTemplate tx;
     private final Clock clock;
     private final String imageBaseUrl;
@@ -89,6 +91,7 @@ public class GroupBuyService {
                            GroupBuySpatialQuery spatialQuery, ImageStorage imageStorage,
                            PaymentRepository paymentRepository, RefundService refundService,
                            PickupService pickupService, NotificationService notificationService,
+                           SettlementService settlementService,
                            TransactionTemplate tx, Clock clock,
                            @Value("${banting.images.public-base-url:}") String imageBaseUrl) {
         this.groupBuyRepository = groupBuyRepository;
@@ -102,6 +105,7 @@ public class GroupBuyService {
         this.refundService = refundService;
         this.pickupService = pickupService;
         this.notificationService = notificationService;
+        this.settlementService = settlementService;
         this.tx = tx;
         this.clock = clock;
         this.imageBaseUrl = imageBaseUrl;
@@ -226,7 +230,11 @@ public class GroupBuyService {
                                 p.isHost(), p.getExpiresAt()))
                         .orElse(null),
                 groupBuy.getFailReason(),
-                votes.myOptionId());
+                votes.myOptionId(),
+                mine ? settlementService.find(id)
+                        .map(s -> new GroupBuyDtos.SettlementView(s.getGrossAmount(), s.getFeeAmount(),
+                                s.getNetAmount(), s.getStatus()))
+                        .orElse(null) : null);
     }
 
     // ───── 개설자 취소 (T12) ─────

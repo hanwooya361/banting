@@ -5,7 +5,7 @@ import { beforeDeadline, CATEGORY_LABELS, formatDateTime, STATUS_BADGES, won, ty
 import { useAuth } from '../auth/context'
 import { ParticipateSheet } from '../components/ParticipateSheet'
 import { cancelGroupBuy, cancelParticipation, minutesLeft, startPayment } from '../lib/payment'
-import { votePickup } from '../lib/pickup'
+import { markPurchased, receive, votePickup } from '../lib/pickup'
 
 export function GroupBuyDetailPage() {
   const { id } = useParams()
@@ -104,6 +104,39 @@ export function GroupBuyDetailPage() {
       setNotice(err instanceof ApiError ? err.message : '취소하지 못했어요')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  // 개설자 "구매했어요" (T16)
+  const handlePurchased = async () => {
+    if (!window.confirm('상품을 샀나요? 참여자에게 약속 장소에서 만나자고 알려요.')) return
+    setPaying(true)
+    setPayError(null)
+    try {
+      await markPurchased(g.id)
+      setNotice('참여자에게 알렸어요. 약속 장소에서 만나요.')
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setPayError(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  // 참여자 "받았어요" (T16)
+  const handleReceive = async () => {
+    const mp = g.myParticipation
+    if (!mp) return
+    setPaying(true)
+    setPayError(null)
+    try {
+      const result = await receive(mp.id)
+      setNotice(result.groupBuyCompleted ? '모두 받아서 공구가 완료됐어요. 반띵 성공!' : '수령을 확인했어요.')
+      setReloadKey((k) => k + 1)
+    } catch (err) {
+      setPayError(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
+    } finally {
+      setPaying(false)
     }
   }
 
@@ -242,7 +275,37 @@ export function GroupBuyDetailPage() {
           onJoin={openSheet}
           onResume={resumePayment}
           onCancel={handleCancelParticipation}
+          onReceive={handleReceive}
         />
+      ) : null}
+
+      {g.mine && g.status === 'CONFIRMED' ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm">
+          <p className="font-semibold text-green-800">다 모였어요. 이제 상품을 사 주세요</p>
+          <p className="mt-1 text-green-700">사고 나서 버튼을 누르면 참여자에게 약속 장소에서 만나자고 알려요.</p>
+          <button
+            type="button"
+            onClick={handlePurchased}
+            disabled={paying}
+            className="mt-3 w-full rounded-lg bg-green-600 py-2.5 font-semibold text-white disabled:opacity-50"
+          >
+            {paying ? '처리 중…' : '구매했어요'}
+          </button>
+          {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
+        </div>
+      ) : null}
+      {g.mine && g.status === 'PICKUP' ? (
+        <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          나눔 준비 중이에요. 참여자가 모두 받았어요를 누르거나 수령 일정 3일 뒤에 공구가 완료되고 정산돼요.
+        </p>
+      ) : null}
+      {g.mine && g.settlement ? (
+        <div className="rounded-xl border border-gray-200 px-4 py-3 text-sm">
+          <p className="font-semibold">정산 예정 {won(g.settlement.netAmount)}</p>
+          <p className="mt-1 text-gray-600">
+            결제 총액 {won(g.settlement.grossAmount)} − 수수료 {won(g.settlement.feeAmount)}
+          </p>
+        </div>
       ) : null}
 
       {g.mine && g.status === 'OPEN' ? (
@@ -292,6 +355,14 @@ export function GroupBuyDetailPage() {
   )
 }
 
+// 결제한 참여자에게 공구 상태별로 보여 줄 문구 (화면 설계 3장)
+const PAID_STATUS_COPY: Partial<Record<GroupBuyDetail['status'], string>> = {
+  OPEN: '다 모이면 자동으로 확정돼요.',
+  CONFIRMED: '다 모여서 확정됐어요! 개설자가 상품을 사면 알려 드려요.',
+  PICKUP: '개설자가 상품을 샀어요. 약속 장소에서 만나요.',
+  COMPLETED: '완료된 공구예요.',
+}
+
 // 참여자 쪽 상태별 안내와 버튼
 function ParticipationBox({
   groupBuy: g,
@@ -300,6 +371,7 @@ function ParticipationBox({
   onJoin,
   onResume,
   onCancel,
+  onReceive,
 }: {
   groupBuy: GroupBuyDetail
   paying: boolean
@@ -307,6 +379,7 @@ function ParticipationBox({
   onJoin: () => void
   onResume: (units: number, host: boolean) => void
   onCancel: () => void
+  onReceive: () => void
 }) {
   const mp = g.myParticipation
   const unitWord = g.priceType === 'EQUAL' ? '명' : g.unitLabel
@@ -317,8 +390,19 @@ function ParticipationBox({
         <p className="font-semibold text-orange-800">참여 완료</p>
         <p className="mt-1 text-orange-700">
           {g.priceType === 'EQUAL' ? '1몫' : `${mp.units}${g.unitLabel}`} · {won(mp.amount)} 결제함.{' '}
-          {g.status === 'CONFIRMED' ? '다 모여서 확정됐어요!' : '다 모이면 자동으로 확정돼요.'}
+          {PAID_STATUS_COPY[g.status] ?? ''}
         </p>
+        {mp.status === 'PAID' && (g.status === 'PICKUP' || g.status === 'COMPLETED') ? (
+          <button
+            type="button"
+            onClick={onReceive}
+            disabled={paying}
+            className="mt-3 w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white disabled:opacity-50"
+          >
+            {paying ? '처리 중…' : '받았어요'}
+          </button>
+        ) : null}
+        {mp.status === 'RECEIVED' ? <p className="mt-2 font-medium text-orange-800">수령 확인 완료</p> : null}
         {mp.status === 'PAID' && g.status === 'OPEN' && beforeDeadline(g.deadlineAt) ? (
           <button
             type="button"
