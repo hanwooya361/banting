@@ -172,13 +172,28 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 - DRAFT 공구는 개설자에게만 보이고 남에게는 404 (존재 여부도 숨김)
 - 사진: `POST /api/uploads/presigned`가 `images/tmp/{회원}/{uuid}.{ext}` presigned PUT URL(5분, Content-Type·Content-Length 서명) 발급 → 브라우저가 S3에 직접 업로드(긴 변 1600px·webp로 줄여서) → 저장 시 서버가 키 형식·소유자·존재를 확인하고 `images/group-buys/`로 복사. tmp는 S3 수명 주기 1일. 빠진 사진은 DB 커밋 후에만 S3에서 삭제
 
-### 마지막 자리 동시성 (T13)
+### 마지막 자리 동시성 (T13 확정)
 1. 참여 요청 시 조건부 UPDATE로 자리를 먼저 잡는다
    `UPDATE group_buys SET reserved_units = reserved_units + :u WHERE id = :id AND status = 'OPEN' AND deadline_at > NOW() AND reserved_units + :u <= capacity_units`
    영향 행이 0이면 "자리가 없어요"
 2. participation(PENDING_PAYMENT, expires_at = +10분) + payment(READY, order_id) 생성 → orderId·금액 반환
 3. 결제 성공 시 paid_units 증가, paid_units == capacity_units면 확정
-4. 비교 대상: 비관적 락(SELECT ... FOR UPDATE), Redis 분산 락. k6로 동시 100명 → 정원 초과 0건, 응답 시간 비교 후 devlog에 기록
+4. **락 순서는 "공구 → 참여"로 통일** (취소·결제 승인과 같음). 참여 행은 먼저 잠그지 않고 읽기만 → 자리가 필요하면(새 참여·재참여) 조건부 UPDATE(공구 행 잠금) → 그다음 내 참여 행을 `refresh(PESSIMISTIC_WRITE)`로 잠그고 다시 읽기. 그 사이 같은 사람의 다른 요청이 상태를 바꿨으면 `PARTICIPATION_CHANGED`(409)로 롤백
+   - T11 구현은 없는 참여 행을 먼저 `FOR UPDATE`로 찾았다. MySQL REPEATABLE READ는 없는 행 자리에 **갭 락**을 걸고, 갭 락끼리는 서로 막지 않는다. 그래서 여러 명이 갭 락을 쥔 채 공구 행을 기다리고, 공구 행을 얻은 쪽의 INSERT(insert intention)는 남의 갭 락에 막혀 **데드락**. 정원은 지켜졌지만 진 쪽은 500. 세션 두 개로 재현해 `SHOW ENGINE INNODB STATUS`로 확인함 (`index uk … lock_mode X insert intention waiting` ↔ `gb PRIMARY … locks rec but not gap waiting`)
+   - Hibernate는 같은 영속성 컨텍스트에 이미 있는 엔티티를 다시 조회해도 상태를 덮어쓰지 않으므로, 재확인은 `findByIdForUpdate`가 아니라 `EntityManager.refresh(…, PESSIMISTIC_WRITE)`
+5. 비교: 설정 `banting.participation.seat-lock` = `CONDITIONAL`(기본) / `PESSIMISTIC`(공구 행 `SELECT … FOR UPDATE` → `GroupBuy.reserve`에서 확인·증가)
+   - 둘 다 공구 행 X 락으로 직렬화되므로 정합성은 같다. 차이는 락을 쥔 동안의 왕복 수 (조건부: UPDATE 한 번, 비관적: SELECT FOR UPDATE + 커밋 때 UPDATE)
+   - Redis 분산 락: **제외**. 서버 1대·DB 1개라 DB 행 락으로 충분하고, Redis를 띄우면 t4g.micro(1GB) 메모리와 크레딧이 더 들며 락과 DB 커밋 사이 불일치라는 새 문제가 생긴다. 서버를 여러 대로 늘리고 DB 락 경합이 병목이 될 때 다시 검토
+6. 측정 (2026-11-20, 로컬: Windows + Docker MySQL 8.4, `loadtest/run-last-seat.sh`). 회원 100명이 남은 5자리 공구에 동시에 참여 × 공구 10개 = 1,000건, 방식마다 2~3회
+
+   | 방식 | 201 | 409 | 500 | 정원 초과 | 참여 요청 avg | p95 |
+   |---|---|---|---|---|---|---|
+   | 수정 전 (T11, 참여 행 먼저 잠금) | 50 | 925 / 934 | **25 / 16** | 0 | 222~253ms | 413~530ms |
+   | 조건부 UPDATE (기본) | 50 | 950 | 0 | 0 | 208~313ms | 370~654ms |
+   | 비관적 락 | 50 | 950 | 0 | 0 | 287~358ms | 406~627ms |
+
+   - 결론: 정원은 세 경우 모두 지켜졌고, 문제는 락 순서로 생긴 데드락(500)이었다. 조건부 UPDATE가 평균 기준 조금 빠르지만 실행마다 편차가 겹칠 정도라 결정적 차이는 아님. 코드가 짧고(조건이 SQL 한 문장) 락 왕복이 적은 조건부 UPDATE를 기본으로 유지
+   - 테스트: `LastSeatConcurrencyTest`(두 방식 각각) 균등 남은 5자리에 100명 → 5명 성공·95명 자리 없음·그 밖의 오류 0, 수량별 남은 3개에 2개씩 100명 → 1명 성공
 
 ### 결제 승인 (T11 확정)
 1. 참여 `POST /api/group-buys/{id}/participations {units}`: 조건부 UPDATE로 자리 확보 → participation(PENDING_PAYMENT, 만료 10분) + payment(READY, 서버가 만든 orderId `bt-UUID`) → orderId·금액(서버 계산) 반환
@@ -320,7 +335,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 | T10 | 금액 계산: 균등 / 수량별 | 단위 테스트 통과(나머지 원 처리 포함) |
 | T11 | 참여 = 결제 (토스 테스트) | 개설자·참여자 결제 승인, 실패 시 보상 취소 |
 | T12 | 참여 취소·환불 | 마감 전 취소 시 결제 취소와 상태 변경 |
-| T13 | 마지막 자리 동시성 | k6 동시 100명 정원 초과 0건, 방식 비교 기록 |
+| T13 | 마지막 자리 동시성 | k6 동시 100명 정원 초과 0건, 방식 비교 기록 (Redis는 검토 후 제외) |
 | T14 | 스케줄러: 결제 대기 만료, 자동 확정·환불 | 중간에 멈춰도 다시 돌면 이어서 처리(멱등) |
 | T15 | 수령 후보·투표·확정 알림 | 확정 시 1위 일정이 수령 일정으로 저장 |
 | T16 | 수령 확인·정산(수수료 차감) | 전원 확인 또는 기한 경과 시 정산 기록 |

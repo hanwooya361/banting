@@ -256,6 +256,18 @@ public class GroupBuy extends BaseTimeEntity {
         }
     }
 
+    /**
+     * 자리 잡기, 비관적 락 방식 (T13 비교용, {@code SeatLock.PESSIMISTIC}). 이 행을 FOR UPDATE로 잠근 상태에서만 부른다.
+     * 기본 방식은 같은 조건을 SQL 한 문장에 넣은 {@code GroupBuyRepository.reserveUnits}.
+     */
+    public void reserve(int units, LocalDateTime now) {
+        checkJoinable(now);
+        if (reservedUnits + units > capacityUnits) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_FULL);
+        }
+        reservedUnits += units;
+    }
+
     /** 개설자가 내 몫을 결제할 수 있는 상태: 결제 전이고 마감 전. */
     public void checkHostPayable(LocalDateTime now) {
         if (status != GroupBuyStatus.DRAFT || !deadlineAt.isAfter(now)) {

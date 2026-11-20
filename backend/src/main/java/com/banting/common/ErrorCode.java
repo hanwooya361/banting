@@ -54,6 +54,7 @@ public enum ErrorCode {
     ALREADY_PARTICIPATED(HttpStatus.CONFLICT, "이미 참여한 공구예요"),
     CANNOT_REJOIN(HttpStatus.CONFLICT, "취소한 공구에는 다시 참여할 수 없어요"),
     PARTICIPATION_PENDING(HttpStatus.CONFLICT, "결제를 기다리는 참여가 있어요. 같은 수량으로 결제를 이어 가 주세요"),
+    PARTICIPATION_CHANGED(HttpStatus.CONFLICT, "참여 상태가 방금 바뀌었어요. 다시 시도해 주세요"),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제 정보를 찾을 수 없어요"),
     PAYMENT_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액이 맞지 않아요"),
     PAYMENT_EXPIRED(HttpStatus.CONFLICT, "결제 시간이 지났어요. 다시 참여해 주세요"),

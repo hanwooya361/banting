@@ -9,10 +9,12 @@ import com.banting.payment.Payment;
 import com.banting.payment.PaymentRepository;
 import com.banting.payment.PaymentStatus;
 import com.banting.payment.RefundService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -24,7 +26,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 실제 결제 승인은 {@link com.banting.payment.PaymentService}.
  */
 @Service
-@RequiredArgsConstructor
 public class ParticipationService {
 
     public static final Duration PAYMENT_WINDOW = Duration.ofMinutes(10);
@@ -35,6 +36,26 @@ public class ParticipationService {
     private final RefundService refundService;
     private final TransactionTemplate tx;
     private final Clock clock;
+    private final SeatLock seatLock;
+    private final EntityManager entityManager;
+
+    public ParticipationService(GroupBuyRepository groupBuyRepository,
+                                ParticipationRepository participationRepository,
+                                PaymentRepository paymentRepository,
+                                RefundService refundService,
+                                TransactionTemplate tx,
+                                Clock clock,
+                                EntityManager entityManager,
+                                @Value("${banting.participation.seat-lock:CONDITIONAL}") SeatLock seatLock) {
+        this.groupBuyRepository = groupBuyRepository;
+        this.participationRepository = participationRepository;
+        this.paymentRepository = paymentRepository;
+        this.refundService = refundService;
+        this.tx = tx;
+        this.clock = clock;
+        this.entityManager = entityManager;
+        this.seatLock = seatLock;
+    }
 
     /** 결제창에 넘길 값. 금액은 서버가 계산한 것만 쓴다. */
     public record PaymentOrder(Long participationId, String orderId, long amount, String orderName,
@@ -80,10 +101,10 @@ public class ParticipationService {
         long amount = groupBuy.pricing().participantAmount(units);
         LocalDateTime expiresAt = now.plus(PAYMENT_WINDOW);
 
-        Participation participation = participationRepository
-                .findByGroupBuyIdAndUserIdForUpdate(groupBuy.getId(), userId).orElse(null);
+        Participation participation = seatLock == SeatLock.PESSIMISTIC
+                ? reservePessimistic(groupBuy.getId(), userId, units, now)
+                : reserveConditional(groupBuy.getId(), userId, units, now);
         if (participation == null) {
-            reserve(groupBuy, units, now);
             participation = participationRepository.save(
                     Participation.pending(groupBuy.getId(), userId, units, amount, expiresAt));
         } else {
@@ -95,15 +116,63 @@ public class ParticipationService {
                     }
                     participation.renew(expiresAt);
                 }
-                case CANCELED -> {
-                    reserve(groupBuy, units, now);
-                    participation.rejoin(units, amount, expiresAt);
-                }
+                case CANCELED -> participation.rejoin(units, amount, expiresAt);   // 자리는 위에서 이미 잡음
                 case PAID, RECEIVED -> throw new BusinessException(ErrorCode.ALREADY_PARTICIPATED);
-                case REFUNDED -> throw new BusinessException(ErrorCode.CANNOT_REJOIN);
+                case REFUND_PENDING, REFUNDED -> throw new BusinessException(ErrorCode.CANNOT_REJOIN);
             }
         }
         return newOrder(groupBuy, participation);
+    }
+
+    /*
+     * 자리 잡기 + 내 참여 행 잠그기. 반환값은 잠근 내 참여 행(없으면 null = 새로 만들 차례).
+     *
+     * 락 순서는 취소·결제 승인과 같은 "공구 → 참여"로 맞춘다 (T13).
+     * 예전에는 없는 참여 행을 먼저 FOR UPDATE로 찾았는데, MySQL(REPEATABLE READ)은 없는 행 자리에 갭 락을 건다.
+     * 갭 락끼리는 서로 막지 않아 100명이 동시에 갭 락을 쥔 채 공구 행 잠금을 기다리고,
+     * 공구 행을 얻은 쪽의 INSERT는 남들의 갭 락에 막혀 → 데드락 (동시 100명 중 26명이 500).
+     */
+
+    /** 새 참여·재참여면 자리가 필요하다. 결제 대기 중이면 이미 자리가 있고, 그 밖의 상태는 아래 switch가 거부한다. */
+    private static boolean needsSeat(Participation participation) {
+        return participation == null || participation.getStatus() == ParticipationStatus.CANCELED;
+    }
+
+    /**
+     * 조건부 UPDATE (기본). 참여 행은 잠그지 않고 먼저 읽기만 해서 갭 락을 만들지 않는다.
+     * 자리가 필요하면 조건부 UPDATE(= 공구 행 잠금) → 그다음 내 참여 행을 잠근다.
+     * 읽은 뒤 잠그기 전에 같은 사람의 다른 요청이 상태를 바꿨으면 다시 시도하게 한다 (자리 증가도 롤백).
+     * 같은 사람이 동시에 새로 참여하면 INSERT가 UNIQUE에 걸려 ALREADY_PARTICIPATED.
+     */
+    private Participation reserveConditional(Long groupBuyId, Long userId, int units, LocalDateTime now) {
+        Participation seen = participationRepository.findByGroupBuyIdAndUserId(groupBuyId, userId).orElse(null);
+        if (needsSeat(seen) && groupBuyRepository.reserveUnits(groupBuyId, units, now) == 0) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_FULL);
+        }
+        if (seen == null) {
+            return null;
+        }
+        // 이미 불러온 엔티티는 다시 조회해도 Hibernate가 상태를 덮어쓰지 않으므로, 잠그면서 DB 최신 값으로 새로 읽는다
+        boolean seatTaken = needsSeat(seen);
+        entityManager.refresh(seen, LockModeType.PESSIMISTIC_WRITE);
+        if (needsSeat(seen) != seatTaken) {
+            throw new BusinessException(ErrorCode.PARTICIPATION_CHANGED);
+        }
+        return seen;
+    }
+
+    /**
+     * 비관적 락 (T13 비교용). 공구 행을 FOR UPDATE로 먼저 잠그므로 같은 공구의 참여 요청은 여기서 한 줄로 선다.
+     * 그 뒤의 참여 행 갭 락은 이미 직렬화된 상태라 데드락을 만들지 않는다.
+     */
+    private Participation reservePessimistic(Long groupBuyId, Long userId, int units, LocalDateTime now) {
+        GroupBuy locked = groupBuyRepository.findByIdForUpdate(groupBuyId).orElseThrow();
+        Participation participation = participationRepository
+                .findByGroupBuyIdAndUserIdForUpdate(groupBuyId, userId).orElse(null);
+        if (needsSeat(participation)) {
+            locked.reserve(units, now);
+        }
+        return participation;
     }
 
     /** 취소 결과. refundAmount는 돌려받는(받을) 금액, 결제 전 취소면 0. */
@@ -173,12 +242,6 @@ public class ParticipationService {
                 : units >= groupBuy.getMinUnitsPerPerson() && units <= groupBuy.getCapacityUnits();
         if (!valid) {
             throw new BusinessException(ErrorCode.INVALID_PARTICIPATION_UNITS);
-        }
-    }
-
-    private void reserve(GroupBuy groupBuy, int units, LocalDateTime now) {
-        if (groupBuyRepository.reserveUnits(groupBuy.getId(), units, now) == 0) {
-            throw new BusinessException(ErrorCode.GROUP_BUY_FULL);
         }
     }
 
