@@ -1,9 +1,15 @@
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/context'
 
 export function MePage() {
-  const { me } = useAuth()
+  const { me, logout } = useAuth()
+  const navigate = useNavigate()
   if (!me) return null
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/')
+  }
 
   const rows: [string, string][] = [
     ['이메일', me.email],
@@ -29,6 +35,13 @@ export function MePage() {
       >
         {me.neighborhoodName ? '동네 바꾸기' : '동네 설정하기'}
       </Link>
+      <Link to="/me/group-buys" className="mt-2 block rounded-lg border border-gray-300 py-2.5 text-center font-medium">
+        내 공구 보기
+      </Link>
+      {/* 휴대폰에선 헤더에 로그아웃이 없어서 여기에 둔다 */}
+      <button type="button" onClick={handleLogout} className="mt-6 w-full text-sm text-gray-500 underline">
+        로그아웃
+      </button>
     </section>
   )
 }

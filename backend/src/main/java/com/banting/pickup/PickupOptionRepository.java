@@ -11,4 +11,7 @@ public interface PickupOptionRepository extends JpaRepository<PickupOption, Long
 
     /** 확정 시 고른 수령 일정 (T15). */
     java.util.Optional<PickupOption> findByGroupBuyIdAndSelectedTrue(Long groupBuyId);
+
+    /** 여러 공구의 정해진 수령 일정을 한 번에 (내 공구 화면). */
+    List<PickupOption> findByGroupBuyIdInAndSelectedTrue(java.util.Collection<Long> groupBuyIds);
 }
