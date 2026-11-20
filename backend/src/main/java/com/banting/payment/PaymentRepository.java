@@ -19,6 +19,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     List<Payment> findByParticipationIdAndStatus(Long participationId, PaymentStatus status);
 
+    /** 돈이 오간 기록(승인·취소)이 있는지. 있으면 개설 대기 공구를 지우지 않는다 (T14). */
+    boolean existsByParticipationIdAndStatusIn(Long participationId, java.util.Collection<PaymentStatus> statuses);
+
+    void deleteByParticipationId(Long participationId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Payment p WHERE p.participationId = :participationId AND p.status = :status")
     List<Payment> findByParticipationIdAndStatusForUpdate(@Param("participationId") Long participationId,

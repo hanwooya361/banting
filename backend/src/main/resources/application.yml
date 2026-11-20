@@ -35,6 +35,9 @@ banting:
   participation:
     # 마지막 자리 잡는 방식 (T13 비교): CONDITIONAL(조건부 UPDATE, 기본) / PESSIMISTIC(SELECT … FOR UPDATE)
     seat-lock: CONDITIONAL
+  scheduler:
+    # 결제 대기 만료·마감 미달 환불·refresh 토큰 정리 (T14). 테스트에선 꺼 둠 (local·prod에서 켬)
+    enabled: false
   demo:
     # 체험 동네 시드 공구(T09.5). 켜면 기동 시 + 매일 04:30에 멱등 시더가 돈다. 테스트에선 꺼 둠 (local·prod에서 켬)
     seed: false

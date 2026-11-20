@@ -2,7 +2,9 @@ package com.banting.groupbuy;
 
 import jakarta.persistence.LockModeType;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
@@ -33,4 +35,24 @@ public interface GroupBuyRepository extends JpaRepository<GroupBuy, Long> {
               AND reserved_units + :units <= capacity_units
             """, nativeQuery = true)
     int reserveUnits(@Param("id") Long id, @Param("units") int units, @Param("now") LocalDateTime now);
+
+    // ───── 스케줄러 대상 (T14). ID만 가져오고, 처리는 한 건씩 잠근 뒤 상태를 다시 확인한다. 시드 공구 제외 ─────
+
+    /** 마감이 cutoff 이전인 모집 중 공구. 인덱스 (status, deadline_at). */
+    @Query("""
+            SELECT g.id FROM GroupBuy g
+            WHERE g.status = com.banting.groupbuy.GroupBuyStatus.OPEN AND g.deadlineAt < :cutoff AND g.demoType IS NULL
+            ORDER BY g.deadlineAt
+            """)
+    List<Long> findOverdueOpenIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
+
+    /** 개설자 결제 대기가 cutoff 전에 만료된 개설 대기 공구. */
+    @Query("""
+            SELECT g.id FROM GroupBuy g, com.banting.participation.Participation p
+            WHERE p.groupBuyId = g.id AND p.host = TRUE
+              AND g.status = com.banting.groupbuy.GroupBuyStatus.DRAFT AND g.demoType IS NULL
+              AND p.status = com.banting.participation.ParticipationStatus.PENDING_PAYMENT AND p.expiresAt < :cutoff
+            ORDER BY g.id
+            """)
+    List<Long> findExpiredDraftIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
 }

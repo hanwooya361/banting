@@ -328,6 +328,22 @@ public class GroupBuy extends BaseTimeEntity {
         failReason = FailReason.HOST_CANCELED;
     }
 
+    /**
+     * 마감 미달 실패 (T14 스케줄러). 모집 중이고 마감이 지났을 때만. 정원이 차면 결제 순간 이미 CONFIRMED라 여기 오지 않는다.
+     * 참여자 환불은 서비스가 이어서 처리한다. 자리 수는 개설자 취소처럼 기록으로 그대로 둔다.
+     */
+    public void failByDeadline(LocalDateTime now) {
+        if (status != GroupBuyStatus.OPEN || deadlineAt.isAfter(now)) {
+            throw new IllegalStateException("마감 미달 실패는 마감이 지난 OPEN 공구만: " + status + ", " + deadlineAt);
+        }
+        status = GroupBuyStatus.FAILED;
+        failReason = FailReason.DEADLINE_UNMET;
+    }
+
+    public boolean isOpen() {
+        return status == GroupBuyStatus.OPEN;
+    }
+
     public boolean isCanceledByHost() {
         return status == GroupBuyStatus.FAILED && failReason == FailReason.HOST_CANCELED;
     }
