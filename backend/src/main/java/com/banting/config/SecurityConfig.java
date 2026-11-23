@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .permitAll()
                         // 공구 목록·상세는 로그인 없이 볼 수 있다 (화면 흐름 1: 둘러보고 참여할 때 로그인)
                         .requestMatchers(HttpMethod.GET, "/api/group-buys", "/api/group-buys/*").permitAll()
+                        // 업데이트 노트는 누구나 (T17)
+                        .requestMatchers(HttpMethod.GET, "/api/notices").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2

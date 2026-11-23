@@ -107,6 +107,12 @@ docker compose ps; docker logs --tail 100 banting-app
 cat .current_tag; free -m; docker stats --no-stream
 ```
 
+관리자 지정 (T17, 2026-11-23 결정: 관리자는 1명이라 코드 없이 DB에서 직접). role은 로그인할 때 토큰에 들어가므로 바꾼 뒤 **다시 로그인**해야 적용된다:
+```bash
+docker exec -it banting-mysql sh -c 'mysql -ubanting -p"$MYSQL_PASSWORD" banting'
+UPDATE users SET role = 'ADMIN' WHERE email = '<내 이메일>';
+```
+
 ## 8. 비용 (월, 크레딧 120달러 기준)
 
 | 항목 | 상시 켬 | 메모 |

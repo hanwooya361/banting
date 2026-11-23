@@ -13,6 +13,9 @@ import { PaymentFailPage, PaymentSuccessPage } from './pages/PaymentResultPages'
 import { MePage } from './pages/MePage'
 import { MyGroupBuysPage } from './pages/MyGroupBuysPage'
 import { NotificationsPage } from './pages/NotificationsPage'
+import { InquiriesPage } from './pages/InquiriesPage'
+import { NoticesPage } from './pages/NoticesPage'
+import { AdminPage } from './pages/AdminPage'
 import { SignupPage } from './pages/SignupPage'
 
 function App() {
@@ -37,6 +40,23 @@ function App() {
           element={
             <RequireAuth>
               <MyGroupBuysPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="notices" element={<NoticesPage />} />
+        <Route
+          path="inquiries"
+          element={
+            <RequireAuth>
+              <InquiriesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="admin"
+          element={
+            <RequireAuth>
+              <AdminPage />
             </RequireAuth>
           }
         />

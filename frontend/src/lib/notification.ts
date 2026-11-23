@@ -7,11 +7,12 @@ export type NotificationType =
   | 'GROUP_BUY_CANCELED'
   | 'GROUP_BUY_PURCHASED'
   | 'GROUP_BUY_COMPLETED'
+  | 'INQUIRY_ANSWERED'
 
 export type NotificationItem = {
   id: number
   type: NotificationType
-  groupBuyId: number
+  groupBuyId: number | null // 문의 답변 알림(T17)은 공구가 없어 null
   message: string
   read: boolean
   createdAt: string
@@ -26,6 +27,12 @@ export const NOTIFICATION_LABELS: Record<NotificationType, { label: string; clas
   GROUP_BUY_COMPLETED: { label: '공구 완료', className: 'bg-violet-100 text-violet-800' },
   GROUP_BUY_FAILED: { label: '무산·환불', className: 'bg-gray-200 text-gray-700' },
   GROUP_BUY_CANCELED: { label: '취소·환불', className: 'bg-gray-200 text-gray-700' },
+  INQUIRY_ANSWERED: { label: '문의 답변', className: 'bg-orange-100 text-orange-800' },
+}
+
+// 알림을 누르면 갈 곳: 공구 알림은 그 공구, 문의 답변은 내 문의
+export function notificationLink(item: NotificationItem) {
+  return item.groupBuyId === null ? '/inquiries' : `/group-buys/${item.groupBuyId}`
 }
 
 // 종 아이콘이 새 알림을 확인하는 간격

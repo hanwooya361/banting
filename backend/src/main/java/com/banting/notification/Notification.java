@@ -32,7 +32,8 @@ public class Notification extends BaseTimeEntity {
     @Column(nullable = false, length = 30)
     private NotificationType type;
 
-    @Column(name = "group_buy_id", nullable = false)
+    /** 공구 알림이면 그 공구, 문의 답변 알림(T17)이면 null (V6 CHECK). */
+    @Column(name = "group_buy_id")
     private Long groupBuyId;
 
     @Column(nullable = false, length = 200)
