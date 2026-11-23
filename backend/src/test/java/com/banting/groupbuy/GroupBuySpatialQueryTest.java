@@ -197,7 +197,7 @@ class GroupBuySpatialQueryTest {
         long seed = insert(37.5666, 126.9781, "OPEN", 1, "예시 공구", "LIVING", 1);
         long trial = insert(37.5666, 126.9781, "OPEN", 1, "체험 공구", "LIVING", 1);
         jdbc.update("UPDATE group_buys SET demo_type = 'SEED' WHERE id = ?", seed);
-        jdbc.update("UPDATE group_buys SET demo_type = 'TRIAL' WHERE id = ?", trial);
+        jdbc.update("UPDATE group_buys SET demo_type = 'TRIAL', trial_user_id = host_id WHERE id = ?", trial);
 
         Condition realOnly = condition(1000, null, null, GroupBuySort.DEADLINE, 20, 0);
         assertThat(ids(query.search(realOnly))).doesNotContain(seed, trial);

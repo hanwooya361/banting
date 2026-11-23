@@ -39,6 +39,9 @@ public class RefundService {
         }
         List<Payment> done = paymentRepository.findByParticipationIdAndStatus(participationId, PaymentStatus.DONE);
         for (Payment payment : done) {   // 성공 결제는 최대 한 건
+            if (payment.isDemo()) {
+                continue;   // 체험 봇 결제(T16.5): 토스에 결제가 없으니 기록만 취소
+            }
             try {
                 toss.cancel(payment.getPaymentKey(), payment.getOrderId(), reason);
             } catch (TossRejectedException e) {

@@ -6,6 +6,7 @@ import { useAuth } from '../auth/context'
 import { ParticipateSheet } from '../components/ParticipateSheet'
 import { cancelGroupBuy, cancelParticipation, minutesLeft, startPayment } from '../lib/payment'
 import { markPurchased, receive, votePickup } from '../lib/pickup'
+import { startTrial, TRIAL_POLL_MS } from '../lib/trial'
 
 export function GroupBuyDetailPage() {
   const { id } = useParams()
@@ -36,6 +37,15 @@ export function GroupBuyDetailPage() {
       active = false
     }
   }, [id, authLoading, reloadKey])
+
+  // 체험 공구(T16.5): 봇이 참여·구매·수령을 진행하는 동안 화면을 자동으로 새로 고친다
+  const trialRunning =
+    groupBuy?.trial === true && ['OPEN', 'CONFIRMED', 'PICKUP'].includes(groupBuy.status)
+  useEffect(() => {
+    if (!trialRunning) return
+    const timer = window.setInterval(() => setReloadKey((k) => k + 1), TRIAL_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [trialRunning])
 
   if (error) return <p className="py-16 text-center text-gray-600">{error}</p>
   if (!groupBuy) return <p className="py-16 text-center text-gray-500">불러오는 중…</p>
@@ -140,6 +150,24 @@ export function GroupBuyDetailPage() {
     }
   }
 
+  // 예시 공구로 체험 시작 → 나만 보는 체험 공구로 이동 (진행 중인 체험이 있으면 그 체험으로)
+  const handleStartTrial = async () => {
+    if (!me) {
+      navigate('/login', { state: { from: `/group-buys/${g.id}` } })
+      return
+    }
+    setPaying(true)
+    setPayError(null)
+    try {
+      const trial = await startTrial(g.id)
+      navigate(`/group-buys/${trial.groupBuyId}`)
+    } catch (err) {
+      setPayError(err instanceof ApiError ? err.message : '잠시 후 다시 시도해 주세요')
+    } finally {
+      setPaying(false)
+    }
+  }
+
   const openSheet = () => {
     if (!me) {
       navigate('/login', { state: { from: `/group-buys/${g.id}` } })
@@ -199,9 +227,21 @@ export function GroupBuyDetailPage() {
       {g.demo ? (
         <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">
           <p className="font-medium">체험 동네의 예시 공구예요</p>
-          <p className="mt-1">실제로 참여하거나 결제할 수는 없어요. 반띵이 어떻게 보이는지 둘러보세요.</p>
+          <p className="mt-1">이 공구엔 참여할 수 없지만, 봇 이웃과 함께 처음부터 끝까지 직접 해 볼 수 있어요.</p>
+          <button
+            type="button"
+            onClick={handleStartTrial}
+            disabled={paying}
+            className="mt-3 w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white disabled:opacity-50"
+          >
+            {paying ? '준비 중…' : '이 공구로 체험하기'}
+          </button>
+          <p className="mt-2 text-xs text-gray-500">로그인이 필요해요 · 토스 테스트 결제라 실제 돈은 나가지 않아요</p>
+          {payError ? <p className="mt-2 text-red-600">{payError}</p> : null}
         </div>
       ) : null}
+
+      {g.trial ? <TrialBanner groupBuy={g} /> : null}
 
       {g.status === 'DRAFT' && g.mine ? (
         <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
@@ -244,8 +284,8 @@ export function GroupBuyDetailPage() {
         </div>
       </section>
 
-      {/* 예시 공구의 링크는 example.com이라 숨긴다 */}
-      {g.demo ? null : (
+      {/* 예시·체험 공구의 링크는 example.com이라 숨긴다 */}
+      {g.demo || g.trial ? null : (
         <a
           href={g.productUrl}
           target="_blank"
@@ -559,5 +599,31 @@ function PickupSection({ groupBuy: g, onVoted }: { groupBuy: GroupBuyDetail; onV
       </ul>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
     </section>
+  )
+}
+
+// 체험 공구 안내 (T16.5). 지금 단계에서 무엇을 기다리는지 한 줄로 보여 준다
+function TrialBanner({ groupBuy: g }: { groupBuy: GroupBuyDetail }) {
+  const paid = g.myParticipation?.status === 'PAID' || g.myParticipation?.status === 'RECEIVED'
+  const step =
+    g.status === 'OPEN'
+      ? paid
+        ? '봇 이웃이 하나씩 참여하고 있어요. 다 모이면 자동으로 확정돼요.'
+        : '아래에서 참여하고 내 몫을 결제해 보세요. 결제하면 봇 이웃이 남은 자리를 채워요.'
+      : g.status === 'CONFIRMED'
+        ? '다 모여서 확정됐어요. 봇 개설자가 곧 상품을 사요.'
+        : g.status === 'PICKUP'
+          ? '봇 이웃이 받았어요를 누르고 있어요. 내 몫도 받았어요를 눌러 마무리해 보세요.'
+          : g.status === 'COMPLETED'
+            ? '체험 완료! 모두 받아서 공구가 끝나고 개설자 정산(수수료 3%)이 기록됐어요.'
+            : '마감까지 결제하지 않아 체험이 끝났어요. 결제한 금액은 자동으로 환불돼요.'
+  return (
+    <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+      <p className="font-medium">체험 공구예요 · 나에게만 보여요</p>
+      <p className="mt-1">개설자와 이웃은 봇이에요. 내 몫은 토스 테스트 결제라 실제 돈은 나가지 않아요.</p>
+      <p className="mt-2 font-medium" role="status">
+        {step}
+      </p>
+    </div>
   )
 }

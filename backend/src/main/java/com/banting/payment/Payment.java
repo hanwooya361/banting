@@ -34,6 +34,10 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "participation_id", nullable = false)
     private Long participationId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private PaymentMethod method;
+
     @Column(name = "order_id", nullable = false, length = 64, unique = true)
     private String orderId;
 
@@ -66,12 +70,17 @@ public class Payment extends BaseTimeEntity {
         p.participationId = participationId;
         p.orderId = "bt-" + UUID.randomUUID();
         p.amount = amount;
+        p.method = PaymentMethod.TOSS;
         p.status = PaymentStatus.READY;
         return p;
     }
 
     public boolean isDone() {
         return status == PaymentStatus.DONE;
+    }
+
+    public boolean isDemo() {
+        return method == PaymentMethod.DEMO;
     }
 
     public boolean isReady() {
@@ -81,6 +90,18 @@ public class Payment extends BaseTimeEntity {
     public void done(String paymentKey, LocalDateTime approvedAt) {
         requireReady();
         this.paymentKey = paymentKey;
+        this.approvedAt = approvedAt;
+        this.status = PaymentStatus.DONE;
+    }
+
+    /**
+     * 체험 봇 결제 (T16.5): 토스 승인 없이 DONE. 체험 공구인지는 호출 쪽(PaymentService.confirmDemo)이 확인한다.
+     * 결제 방식이 DEMO로 남아 환불 때 토스를 부르지 않는다.
+     */
+    public void doneByDemo(LocalDateTime approvedAt) {
+        requireReady();
+        this.method = PaymentMethod.DEMO;
+        this.paymentKey = "demo-" + orderId;
         this.approvedAt = approvedAt;
         this.status = PaymentStatus.DONE;
     }

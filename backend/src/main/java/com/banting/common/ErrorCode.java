@@ -56,6 +56,11 @@ public enum ErrorCode {
     PARTICIPATION_PENDING(HttpStatus.CONFLICT, "결제를 기다리는 참여가 있어요. 같은 수량으로 결제를 이어 가 주세요"),
     PARTICIPATION_CHANGED(HttpStatus.CONFLICT, "참여 상태가 방금 바뀌었어요. 다시 시도해 주세요"),
 
+    // 체험 모드 (T16.5)
+    TRIAL_SOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "체험할 수 있는 예시 공구가 아니에요"),
+    TRIAL_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "체험은 하루 5번까지 할 수 있어요. 내일 다시 해 주세요"),
+    TRIAL_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 체험을 시작할 수 없어요. 잠시 후 다시 해 주세요"),
+
     // 수령 투표 (T15)
     PICKUP_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "수령 후보를 찾을 수 없어요"),
     PICKUP_VOTE_NOT_ALLOWED(HttpStatus.FORBIDDEN, "결제를 마친 참여자만 투표할 수 있어요"),

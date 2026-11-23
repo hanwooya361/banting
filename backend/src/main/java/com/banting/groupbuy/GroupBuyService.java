@@ -196,13 +196,13 @@ public class GroupBuyService {
 
     // ───── 조회 ─────
 
-    /** 결제 전(DRAFT) 공구는 개설자 본인에게만 보인다. 남에게는 없는 공구처럼 404. */
+    /** 결제 전(DRAFT) 공구는 개설자 본인에게만, 체험 공구는 만든 방문자에게만 보인다. 남에게는 없는 공구처럼 404. */
     public Detail get(Long id, Long viewerId) {
         GroupBuy groupBuy = groupBuyRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND));
         boolean mine = groupBuy.getHostId().equals(viewerId);
-        if (groupBuy.isDraft() && !mine) {
-            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND);
+        if ((groupBuy.isDraft() && !mine) || !groupBuy.isVisibleTo(viewerId)) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND);   // 남의 체험 공구도 없는 공구처럼 (T16.5)
         }
         User host = userRepository.findById(groupBuy.getHostId()).orElseThrow();
         PickupService.VoteSummary votes = pickupService.summary(id, viewerId);
@@ -224,7 +224,7 @@ public class GroupBuyService {
                                 votes.votesByOption().getOrDefault(o.getId(), 0L), o.isSelected()))
                         .toList(),
                 new GroupBuyDtos.HostView(host.getNickname(), host.getRole()),
-                mine, myAmount, groupBuy.isDemo(),
+                mine, myAmount, groupBuy.isSeed(), groupBuy.isTrial(),
                 viewerId == null ? null : participationRepository.findByGroupBuyIdAndUserId(id, viewerId)
                         .map(p -> new GroupBuyDtos.MyParticipation(p.getId(), p.getStatus(), p.getUnits(), p.getAmount(),
                                 p.isHost(), p.getExpiresAt()))

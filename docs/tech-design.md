@@ -84,6 +84,7 @@ notices (독립)
 | status | VARCHAR(15) | DRAFT / OPEN / CONFIRMED / PICKUP / COMPLETED / FAILED |
 | fail_reason | VARCHAR(20) NULL | DEADLINE_UNMET / HOST_CANCELED |
 | demo_type | VARCHAR(10) NULL | NULL = 실제 공구, SEED = 시드(예시), TRIAL = 체험 모드. CHECK로 이 세 값만 허용 (V3, T09.5) |
+| trial_user_id | BIGINT FK NULL | 체험 공구를 만든 방문자. TRIAL일 때만 값이 있음(CHECK). 인덱스 (trial_user_id, created_at) (V5, T16.5) |
 | location | POINT SRID 4326 NOT NULL | 개설자 동네 좌표, SPATIAL INDEX |
 | neighborhood_name | VARCHAR(50) | |
 | deadline_at | DATETIME(6) | 모집 마감 |
@@ -117,6 +118,7 @@ id, group_buy_id FK, url VARCHAR(500), sort_order INT
 | --- | --- | --- |
 | id | BIGINT PK | |
 | participation_id | BIGINT FK | |
+| method | VARCHAR(10) | TOSS / DEMO(체험 봇, 토스 호출 없음). 기본 TOSS, CHECK (V5, T16.5) |
 | order_id | VARCHAR(64) UNIQUE | 서버가 발급, 토스 orderId |
 | payment_key | VARCHAR(200) NULL | 토스 승인 후 저장 |
 | amount | BIGINT | |
@@ -302,12 +304,16 @@ CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 
 - 상세: "예시 공구예요" 안내, 상품 링크(example.com) 숨김
 - **T11~T16 주의**: 시드 공구(`demo_type = SEED`)는 참여·결제·환불·정산·스케줄러 대상이 아니다 (참여 요청은 거부, 스케줄러는 `demo_type IS NULL`만 처리)
 
-**체험 모드 (T16.5, 정산까지 만든 뒤)**
-- 상세 화면 "체험하기" → 방문자 전용 체험 공구 생성(정원 3~4, 마감 몇 분). 방문자는 참여자로 들어가 **본인 몫은 토스 테스트 결제**로 실제 결제 흐름을 겪는다
-- 나머지 자리는 봇 참여자가 몇 초 간격으로 채움 → 정원이 차면 기존 로직대로 확정 → 봇이 수령 투표 → 방문자가 수령 확인 → 정산 기록까지 1~2분 안에 끝
-- 봇은 화면을 흉내 내는 게 아니라 **같은 서비스 메서드를 호출**한다. 봇 결제는 토스를 부르지 않는 `DEMO` 결제 기록
-- 격리: `demo=true` 공구는 실제 목록·통계에서 제외, 24시간 뒤 자동 정리, 회원당 진행 중 체험 1개 + 요청 횟수 제한
-- 로그인은 필요 (게스트 체험 계정은 피드백 보고 결정)
+**체험 모드 (T16.5, 2026-11-23 구현)**
+- 예시(시드) 공구 상세의 "이 공구로 체험하기" → `POST /api/trials {seedGroupBuyId}` → 시드를 복사한 방문자 전용 체험 공구(균등 4명, 마감 10분). 개설자는 데모 봇(`seed-host`), 이웃 봇은 `seed-neighbor1·2`
+- 봇은 화면을 흉내 내지 않고 **같은 서비스 메서드를 호출**: 봇 개설자가 `participateAsTrialBot` → `PaymentService.confirmDemo`로 내 몫을 결제해 OPEN. 방문자는 일반 참여 API + **토스 테스트 결제**
+- 봇 결제는 `payments.method = DEMO` (토스 호출 없음). `confirmDemo`·봇 참여는 HTTP로 열려 있지 않고, 체험 공구가 아니면 거부(공구 행 잠금 후 한 번 더 확인). 환불·보상 취소는 DEMO면 토스를 부르지 않고 기록만
+- 봇 진행(`TrialBotService`): 진행 상태를 따로 저장하지 않고 4초마다 **지금 DB 상태를 보고 다음 한 걸음만** (재시작해도 이어짐). OPEN: 방문자 결제 후 이웃 봇 1명 참여·DEMO 결제·투표 → 정원이 차면 기존 로직대로 확정·1위 수령 일정·알림 / CONFIRMED: 봇 개설자 구매했어요 / PICKUP: 봇 받았어요 → 방문자 받았어요 → 완료·정산 기록
+- 격리: TRIAL은 어떤 목록·내 공구·통계에도 안 나오고, 상세·참여는 만든 방문자만(남에게는 404). 시드는 여전히 참여·투표 불가
+- 스케줄러(T14)는 SEED만 제외하고 TRIAL도 처리: 방문자가 결제하지 않으면 마감 미달로 실패하고 환불(봇 몫은 DEMO라 기록만, 방문자 몫은 토스 취소)
+- 남용 방지: 회원당 끝나지 않은 체험 1개(있으면 새로 만들지 않고 그 체험으로 보냄, 200 `resumed`), 24시간에 5번(429). 같은 회원의 동시 요청은 회원 행 `FOR UPDATE`로 한 줄로
+- **정리 (2026-11-23 변경)**: 설계의 "24시간 뒤 자동 삭제"를 **삭제하지 않고 남기기**로 바꿈. 결제·정산 기록이 감사 이력으로 남고, 여러 테이블 FK 순서 삭제와 토스 결제 기록·DB 불일치를 피함. 데이터 양은 무시할 수준. 완료된 체험의 방문자 토스 테스트 결제는 취소하지 않음(테스트 돈)
+- 로그인 필요 (게스트 체험 계정은 피드백 보고 결정), 방문자는 참여자로만
 
 ### 동네 설정 (T07)
 - 좌표 → 동네 이름: 카카오 로컬 API(coord2regioncode, 행정동 H)를 **서버에서** 호출. 클라이언트가 보낸 이름은 쓰지 않음 (가짜 동네 이름 방지)

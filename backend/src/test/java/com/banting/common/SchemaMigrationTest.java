@@ -93,8 +93,8 @@ class SchemaMigrationTest {
         long groupBuyId = insertGroupBuy(insertUser("demo@banting.test", "demo"), 4, 0, 0);
 
         jdbc.update("UPDATE group_buys SET demo_type = 'SEED' WHERE id = ?", groupBuyId);
-        jdbc.update("UPDATE group_buys SET demo_type = 'TRIAL' WHERE id = ?", groupBuyId);
-        jdbc.update("UPDATE group_buys SET demo_type = NULL WHERE id = ?", groupBuyId);
+        jdbc.update("UPDATE group_buys SET demo_type = 'TRIAL', trial_user_id = host_id WHERE id = ?", groupBuyId);   // 체험은 방문자 필수 (V5)
+        jdbc.update("UPDATE group_buys SET demo_type = NULL, trial_user_id = NULL WHERE id = ?", groupBuyId);
         assertThatThrownBy(() -> jdbc.update("UPDATE group_buys SET demo_type = 'FAKE' WHERE id = ?", groupBuyId))
                 .isInstanceOf(DataAccessException.class)
                 .hasMessageContaining("ck_group_buys_demo_type");
