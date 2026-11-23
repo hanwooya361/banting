@@ -170,6 +170,19 @@ class TrialIntegrationTest {
     }
 
     @Test
+    void 내가_만든_체험은_내_공구에_체험으로_보인다() throws Exception {
+        long id = startedTrialId();
+        participate(visitorToken, id).andExpect(status().isCreated());
+
+        mvc.perform(get("/api/users/me/group-buys").header(HttpHeaders.AUTHORIZATION, "Bearer " + visitorToken))
+                .andExpect(jsonPath("$.active[0].groupBuyId").value(id))
+                .andExpect(jsonPath("$.active[0].trial").value(true))
+                .andExpect(jsonPath("$.active[0].todo").value("PAY"));
+        mvc.perform(get("/api/users/me/group-buys").header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
+                .andExpect(jsonPath("$.active.length()").value(0));
+    }
+
+    @Test
     void 예시_공구에는_여전히_참여할_수_없다() throws Exception {
         participate(visitorToken, seedId).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DEMO_GROUP_BUY"));
@@ -222,6 +235,10 @@ class TrialIntegrationTest {
         assertThat(jdbc.queryForList("SELECT method FROM payments WHERE status = 'DONE' ORDER BY id", String.class))
                 .containsExactly("DEMO", "TOSS", "DEMO", "DEMO");
         assertThat(toss.confirms()).hasSize(1);   // 토스는 방문자 몫 한 번만
+        // 체험한 방문자에게도 정산 결과를 보여 준다 (실제 공구에선 개설자만)
+        mvc.perform(get("/api/group-buys/" + id).header(HttpHeaders.AUTHORIZATION, "Bearer " + visitorToken))
+                .andExpect(jsonPath("$.settlement.netAmount").value(19_206))
+                .andExpect(jsonPath("$.settlement.feeAmount").value(594));
         assertThat(bot.step(id)).isFalse();       // 끝난 체험은 더 진행하지 않음
     }
 

@@ -602,28 +602,70 @@ function PickupSection({ groupBuy: g, onVoted }: { groupBuy: GroupBuyDetail; onV
   )
 }
 
-// 체험 공구 안내 (T16.5). 지금 단계에서 무엇을 기다리는지 한 줄로 보여 준다
+// 체험 공구 안내 (T16.5). 진행 단계를 체크 표시로 보여 주고, 지금 무엇을 기다리는지 한 줄로 알려 준다
 function TrialBanner({ groupBuy: g }: { groupBuy: GroupBuyDetail }) {
   const paid = g.myParticipation?.status === 'PAID' || g.myParticipation?.status === 'RECEIVED'
-  const step =
-    g.status === 'OPEN'
-      ? paid
-        ? '봇 이웃이 하나씩 참여하고 있어요. 다 모이면 자동으로 확정돼요.'
-        : '아래에서 참여하고 내 몫을 결제해 보세요. 결제하면 봇 이웃이 남은 자리를 채워요.'
-      : g.status === 'CONFIRMED'
-        ? '다 모여서 확정됐어요. 봇 개설자가 곧 상품을 사요.'
-        : g.status === 'PICKUP'
-          ? '봇 이웃이 받았어요를 누르고 있어요. 내 몫도 받았어요를 눌러 마무리해 보세요.'
-          : g.status === 'COMPLETED'
-            ? '체험 완료! 모두 받아서 공구가 끝나고 개설자 정산(수수료 3%)이 기록됐어요.'
-            : '마감까지 결제하지 않아 체험이 끝났어요. 결제한 금액은 자동으로 환불돼요.'
+  const received = g.myParticipation?.status === 'RECEIVED'
+  const order = ['DRAFT', 'OPEN', 'CONFIRMED', 'PICKUP', 'COMPLETED']
+  const reached = (status: string) => order.indexOf(g.status) >= order.indexOf(status)
+  // 개설자 봇 1 + 나 1을 뺀 자리가 이웃 봇 몫
+  const botSeats = g.capacityUnits - 2
+  const botsJoined = Math.max(0, Math.min(botSeats, g.paidUnits - 1 - (paid ? 1 : 0)))
+  const steps = [
+    { label: '체험 공구 열림 (개설자 봇 결제)', done: true },
+    { label: '내 몫 결제 (토스 테스트)', done: paid },
+    { label: `이웃 봇 참여 ${botsJoined}/${botSeats}`, done: reached('CONFIRMED') },
+    { label: '다 모여서 확정 · 수령 일정 결정', done: reached('CONFIRMED') },
+    { label: '개설자 봇 구매했어요', done: reached('PICKUP') },
+    { label: '내가 받았어요', done: received },
+    { label: '공구 완료 · 정산 기록', done: g.status === 'COMPLETED' },
+  ]
+  const failed = g.status === 'FAILED'
+  const current = failed ? -1 : steps.findIndex((s) => !s.done)
+  const hint =
+    failed
+      ? '마감까지 다 모이지 않아 체험이 끝났어요. 결제한 금액은 자동으로 환불돼요. 예시 공구에서 다시 체험할 수 있어요.'
+      : g.status === 'COMPLETED'
+        ? '체험 완료! 모두 받아서 공구가 끝나고 개설자 정산(수수료 3%)이 기록됐어요.'
+        : !paid
+          ? '아래에서 참여하고 내 몫을 결제해 보세요. 결제하면 봇 이웃이 남은 자리를 채워요.'
+          : g.status === 'OPEN'
+            ? '봇 이웃이 하나씩 참여하고 있어요. 다 모이면 자동으로 확정돼요.'
+            : g.status === 'CONFIRMED'
+              ? '다 모여서 확정됐어요. 봇 개설자가 곧 상품을 사요.'
+              : '봇 이웃이 받았어요를 누르고 있어요. 내 몫도 받았어요를 눌러 마무리해 보세요.'
   return (
     <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
       <p className="font-medium">체험 공구예요 · 나에게만 보여요</p>
       <p className="mt-1">개설자와 이웃은 봇이에요. 내 몫은 토스 테스트 결제라 실제 돈은 나가지 않아요.</p>
-      <p className="mt-2 font-medium" role="status">
-        {step}
+      <ol className="mt-3 flex flex-col gap-1.5" aria-label="체험 진행 단계">
+        {steps.map((step, index) => (
+          <li
+            key={step.label}
+            className={`flex items-center gap-2 ${step.done ? 'text-violet-900' : index === current ? 'font-semibold text-violet-900' : 'text-violet-400'}`}
+          >
+            <span
+              className={`flex h-5 w-5 flex-none items-center justify-center rounded-full text-[11px] ${step.done ? 'bg-violet-600 text-white' : index === current ? 'border-2 border-violet-600' : 'border border-violet-300'}`}
+              aria-hidden="true"
+            >
+              {step.done ? '✓' : ''}
+            </span>
+            <span>
+              {step.label}
+              <span className="sr-only">{step.done ? ' 완료' : index === current ? ' 진행 중' : ''}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 font-medium" role="status">
+        {hint}
       </p>
+      {g.status === 'COMPLETED' && g.settlement ? (
+        <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 text-violet-900">
+          개설자 정산 {won(g.settlement.netAmount)} = 결제 총액 {won(g.settlement.grossAmount)} − 수수료{' '}
+          {won(g.settlement.feeAmount)}
+        </p>
+      ) : null}
     </div>
   )
 }

@@ -62,7 +62,7 @@ public class MyGroupBuyService {
     public record Item(Long groupBuyId, String title, GroupBuyStatus status, GroupBuy.FailReason failReason,
                        String thumbnailUrl, boolean host, Long participationId, ParticipationStatus participationStatus,
                        int units, long amount, LocalDateTime deadlineAt, LocalDateTime pickupAt, String pickupPlace,
-                       Todo todo) {
+                       Todo todo, boolean trial) {   // trial: 내가 만든 체험 공구 (T16.5)
     }
 
     public record Response(List<Item> active, List<Item> hosting, List<Item> past) {
@@ -92,7 +92,7 @@ public class MyGroupBuyService {
                     thumbnailKey == null ? null : imageBaseUrl + "/" + thumbnailKey,
                     p.isHost(), p.getId(), p.getStatus(), p.getUnits(), p.getAmount(), g.getDeadlineAt(),
                     pickup == null ? null : pickup.getPickupAt(), pickup == null ? null : pickup.getPlaceName(),
-                    todo(p, g, now));
+                    todo(p, g, now), g.isTrial());
             boolean inProgress = IN_PROGRESS.contains(g.getStatus()) && KEEPING_SEAT.contains(p.getStatus());
             if (!inProgress) {
                 past.add(item);           // 완료·무산, 또는 내가 취소해 환불(대기)된 것

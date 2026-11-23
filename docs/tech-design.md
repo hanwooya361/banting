@@ -251,7 +251,7 @@ PENDING_PAYMENT → PAID (승인) / CANCELED (만료 T14, 결제 전 본인 취�
 - 확정(마지막 결제 승인)과 같은 트랜잭션에서 1위 후보 `selected = true` + 결제한 사람 전원(개설자 포함)에게 알림. 확정·수령 일정·알림이 함께 커밋되거나 함께 롤백(롤백되면 토스는 보상 취소)
 - 알림은 인앱만 (이메일·푸시 없음: 도메인·비용·외부 호출 실패 처리 부담). `NotificationService`의 보내기 메서드는 `Propagation.MANDATORY`라 상태 변경 트랜잭션 밖에서 부르면 예외 → "상태는 바뀌었는데 알림이 없는" 불일치를 구조로 막음
   - 확정: 결제 완료한 전원 / 마감 미달 무산: 결제했던 전원(T14 스케줄러 트랜잭션) / 개설자 취소: 개설자를 뺀 결제 참여자(T12 트랜잭션)
-  - `GET /api/notifications` 최근 20개 + 안 읽은 수, `POST /api/notifications/{id}/read`(남의 알림 404), `POST /api/notifications/read-all`
+  - `GET /api/notifications?before={id}` 최신순 20개 + 안 읽은 수 + `hasNext` (2026-11-23: 20개 넘으면 볼 수 없던 문제 → id 기준 페이지, 인덱스 (user_id, id)로 OFFSET 없이), `POST /api/notifications/{id}/read`(남의 알림 404), `POST /api/notifications/read-all`
   - 화면: 헤더 종 + 안 읽은 수, 페이지 이동 때마다 다시 조회(실시간 연결 없음). 휴대폰에선 목록을 화면 양옆 16px에 고정
 - 상세 응답: `pickupOptions[].voteCount·selected`, `myPickupVoteOptionId`
 - 테스트 `PickupVoteIntegrationTest` 14개: 투표·표 바꾸기·개설자 투표, 결제 전·미참여·남의 후보·확정 후 거부, 취소한 사람 표 제외, 확정 시 1위 저장(완료 조건)·동점·무투표, 미확정이면 선택·알림 없음, 무산·개설자 취소 알림 대상, 알림 조회·읽음·남의 알림 404·비로그인 401
@@ -314,6 +314,7 @@ CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 
 - 남용 방지: 회원당 끝나지 않은 체험 1개(있으면 새로 만들지 않고 그 체험으로 보냄, 200 `resumed`), 24시간에 5번(429). 같은 회원의 동시 요청은 회원 행 `FOR UPDATE`로 한 줄로
 - **정리 (2026-11-23 변경)**: 설계의 "24시간 뒤 자동 삭제"를 **삭제하지 않고 남기기**로 바꿈. 결제·정산 기록이 감사 이력으로 남고, 여러 테이블 FK 순서 삭제와 토스 결제 기록·DB 불일치를 피함. 데이터 양은 무시할 수준. 완료된 체험의 방문자 토스 테스트 결제는 취소하지 않음(테스트 돈)
 - 로그인 필요 (게스트 체험 계정은 피드백 보고 결정), 방문자는 참여자로만
+- 화면(②): 체험 상세에 진행 단계 체크(열림 → 내 결제 → 봇 참여 n/2 → 확정 → 구매 → 받았어요 → 정산), 3초마다 새로 고침. 완료 시 방문자에게도 정산 내역(실제 공구는 개설자만). 내 공구에 내가 만든 체험이 "체험" 배지로 보임
 
 ### 동네 설정 (T07)
 - 좌표 → 동네 이름: 카카오 로컬 API(coord2regioncode, 행정동 H)를 **서버에서** 호출. 클라이언트가 보낸 이름은 쓰지 않음 (가짜 동네 이름 방지)
@@ -350,7 +351,8 @@ CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 
 | POST | /api/participations/{id}/receive | 수령 확인 | 본인 |
 | POST | /api/payments/confirm | 토스 결제 승인 | 회원 |
 | POST | /api/group-buys/{id}/pickup-votes | 수령 후보 투표 (optionId), 다시 보내면 변경 (T15) | 결제한 참여자·개설자 |
-| GET | /api/notifications | 내 알림 최근 20개 + 안 읽은 수 (T15) | 회원 |
+| GET | /api/notifications?before= | 내 알림 20개씩(id 기준 더 보기) + 안 읽은 수 + hasNext (T15, 11-23 페이지) | 회원 |
+| POST | /api/trials | 체험 시작 (시드 id → 체험 공구, 진행 중이면 그 체험 200) (T16.5) | 회원 |
 | POST | /api/notifications/{id}/read, /api/notifications/read-all | 알림 읽음 (T15) | 본인 |
 | GET | /api/users/me/group-buys | 내 공구 (S07): `{active, hosting, past}` 한 번에, 카드마다 지금 할 일(todo) | 회원 |
 | POST | /api/inquiries | 문의 등록 | 회원 |

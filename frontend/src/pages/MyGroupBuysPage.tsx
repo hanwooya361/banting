@@ -122,6 +122,7 @@ function MyGroupBuyCard({ item, onChanged }: { item: MyGroupBuyItem; onChanged: 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-xs">
             <span className={`rounded-full px-2 py-0.5 font-medium ${badge.className}`}>{badge.label}</span>
+            {item.trial ? <span className="rounded-full bg-violet-100 px-2 py-0.5 font-medium text-violet-800">체험</span> : null}
             {item.host ? <span className="text-gray-500">내가 연 공구</span> : null}
           </div>
           <p className="mt-1 truncate font-semibold">{item.title}</p>
