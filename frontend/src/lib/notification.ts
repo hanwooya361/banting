@@ -1,19 +1,38 @@
-// 인앱 알림 (T15). 확정·무산·개설자 취소 때 서버가 상태 변경과 같은 트랜잭션에서 만든다
+// 인앱 알림 (T15). 확정·무산·취소·구매·완료 때 서버가 상태 변경과 같은 트랜잭션에서 만든다. 보관 30일
 import { api } from './api'
+
+export type NotificationType =
+  | 'GROUP_BUY_CONFIRMED'
+  | 'GROUP_BUY_FAILED'
+  | 'GROUP_BUY_CANCELED'
+  | 'GROUP_BUY_PURCHASED'
+  | 'GROUP_BUY_COMPLETED'
 
 export type NotificationItem = {
   id: number
-  type: 'GROUP_BUY_CONFIRMED' | 'GROUP_BUY_FAILED' | 'GROUP_BUY_CANCELED'
+  type: NotificationType
   groupBuyId: number
   message: string
   read: boolean
   createdAt: string
 }
 
-export type NotificationList = { unreadCount: number; items: NotificationItem[] }
+// hasNext면 마지막 항목 id를 before로 넘겨 더 오래된 20개를 받는다
+export type NotificationList = { unreadCount: number; items: NotificationItem[]; hasNext: boolean }
 
-export function fetchNotifications() {
-  return api<NotificationList>('/api/notifications')
+export const NOTIFICATION_LABELS: Record<NotificationType, { label: string; className: string }> = {
+  GROUP_BUY_CONFIRMED: { label: '확정', className: 'bg-green-100 text-green-800' },
+  GROUP_BUY_PURCHASED: { label: '구매 완료', className: 'bg-blue-100 text-blue-800' },
+  GROUP_BUY_COMPLETED: { label: '공구 완료', className: 'bg-violet-100 text-violet-800' },
+  GROUP_BUY_FAILED: { label: '무산·환불', className: 'bg-gray-200 text-gray-700' },
+  GROUP_BUY_CANCELED: { label: '취소·환불', className: 'bg-gray-200 text-gray-700' },
+}
+
+// 종 아이콘이 새 알림을 확인하는 간격
+export const NOTIFICATION_POLL_MS = 30_000
+
+export function fetchNotifications(before?: number) {
+  return api<NotificationList>(before ? `/api/notifications?before=${before}` : '/api/notifications')
 }
 
 export function readNotification(id: number) {
@@ -24,3 +43,8 @@ export function readAllNotifications() {
   return api<void>('/api/notifications/read-all', { method: 'POST' })
 }
 
+// 다른 화면(전체 알림 페이지 ↔ 종)에서 읽음 처리했을 때 서로 새로 고치게 알리는 이벤트
+export const NOTIFICATIONS_CHANGED = 'banting:notifications-changed'
+export function notifyNotificationsChanged() {
+  window.dispatchEvent(new Event(NOTIFICATIONS_CHANGED))
+}

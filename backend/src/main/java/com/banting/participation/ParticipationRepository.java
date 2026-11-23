@@ -38,11 +38,13 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
 
     /**
      * 내 공구 화면(S07): 내 참여 행과 공구를 한 번에 (최근 참여 순). 결제 대기 만료·결제 전 취소(CANCELED)와 시드 공구는 뺀다.
+     * 체험 공구는 내가 만든 것만 넣는다 (T16.5: 나중에 다시 찾아갈 수 있게. 봇 회원의 체험 참여는 어차피 아무도 보지 않음).
      * 반환 원소는 [Participation, GroupBuy].
      */
     @Query("""
             SELECT p, g FROM Participation p, com.banting.groupbuy.GroupBuy g
-            WHERE g.id = p.groupBuyId AND p.userId = :userId AND g.demoType IS NULL
+            WHERE g.id = p.groupBuyId AND p.userId = :userId
+              AND (g.demoType IS NULL OR (g.demoType = com.banting.groupbuy.DemoType.TRIAL AND g.trialUserId = :userId))
               AND p.status <> com.banting.participation.ParticipationStatus.CANCELED
             ORDER BY p.id DESC
             """)

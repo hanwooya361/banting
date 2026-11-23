@@ -20,6 +20,7 @@ export type MyGroupBuyItem = {
   pickupAt: string | null
   pickupPlace: string | null
   todo: MyTodo | null // 지금 내가 할 일 (있으면 맨 위)
+  trial: boolean // 내가 만든 체험 공구 (T16.5)
 }
 
 export type MyGroupBuys = { active: MyGroupBuyItem[]; hosting: MyGroupBuyItem[]; past: MyGroupBuyItem[] }

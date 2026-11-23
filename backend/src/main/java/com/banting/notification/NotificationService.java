@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -43,8 +44,12 @@ public class NotificationService {
                        LocalDateTime createdAt) {
     }
 
-    public record ListResponse(long unreadCount, List<Item> items) {
+    /** @param hasNext 더 오래된 알림이 있는지. 다음 페이지는 마지막 항목 id를 before로 */
+    public record ListResponse(long unreadCount, List<Item> items, boolean hasNext) {
     }
+
+    /** 한 페이지 크기. 보관 기간(30일) 안의 알림은 더 보기로 모두 볼 수 있다. */
+    static final int PAGE_SIZE = 20;
 
     // ───── 보내기 (상태 변경 트랜잭션 안에서만) ─────
 
@@ -94,12 +99,16 @@ public class NotificationService {
     // ───── 내 알림 ─────
 
     @Transactional(readOnly = true)
-    public ListResponse list(Long userId) {
-        List<Item> items = notificationRepository.findTop20ByUserIdOrderByIdDesc(userId).stream()
+    public ListResponse list(Long userId, Long before) {
+        // 한 개 더 가져와서 다음 페이지가 있는지 판단 (COUNT 쿼리 없이)
+        List<Item> rows = notificationRepository
+                .findPage(userId, before == null ? Long.MAX_VALUE : before, PageRequest.ofSize(PAGE_SIZE + 1)).stream()
                 .map(n -> new Item(n.getId(), n.getType(), n.getGroupBuyId(), n.getMessage(), n.isRead(),
                         n.getCreatedAt()))
                 .toList();
-        return new ListResponse(notificationRepository.countByUserIdAndReadAtIsNull(userId), items);
+        boolean hasNext = rows.size() > PAGE_SIZE;
+        return new ListResponse(notificationRepository.countByUserIdAndReadAtIsNull(userId),
+                hasNext ? rows.subList(0, PAGE_SIZE) : rows, hasNext);
     }
 
     @Transactional

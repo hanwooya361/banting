@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -17,10 +18,11 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
-    /** 최근 20개 + 안 읽은 수. */
+    /** 최신순 20개 + 안 읽은 수 + 더 있는지. 더 보기는 마지막 항목 id를 before로 (보관 30일). */
     @GetMapping
-    public NotificationService.ListResponse list(@AuthenticationPrincipal Jwt jwt) {
-        return notificationService.list(userId(jwt));
+    public NotificationService.ListResponse list(@AuthenticationPrincipal Jwt jwt,
+                                                 @RequestParam(required = false) Long before) {
+        return notificationService.list(userId(jwt), before);
     }
 
     @PostMapping("/{id}/read")

@@ -12,6 +12,7 @@ import { CheckoutPage } from './pages/CheckoutPage'
 import { PaymentFailPage, PaymentSuccessPage } from './pages/PaymentResultPages'
 import { MePage } from './pages/MePage'
 import { MyGroupBuysPage } from './pages/MyGroupBuysPage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { SignupPage } from './pages/SignupPage'
 
 function App() {
@@ -36,6 +37,14 @@ function App() {
           element={
             <RequireAuth>
               <MyGroupBuysPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="notifications"
+          element={
+            <RequireAuth>
+              <NotificationsPage />
             </RequireAuth>
           }
         />

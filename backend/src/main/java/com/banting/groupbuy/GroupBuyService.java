@@ -231,7 +231,7 @@ public class GroupBuyService {
                         .orElse(null),
                 groupBuy.getFailReason(),
                 votes.myOptionId(),
-                mine ? settlementService.find(id)
+                mine || groupBuy.isTrial() ? settlementService.find(id)   // 체험은 방문자에게도 정산 결과를 보여 줌 (T16.5)
                         .map(s -> new GroupBuyDtos.SettlementView(s.getGrossAmount(), s.getFeeAmount(),
                                 s.getNetAmount(), s.getStatus()))
                         .orElse(null) : null);
