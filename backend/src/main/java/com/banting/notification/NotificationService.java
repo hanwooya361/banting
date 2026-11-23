@@ -87,6 +87,13 @@ public class NotificationService {
                 "'%s' 공구가 완료됐어요. 정산 예정 %,d원 (수수료 %,d원)".formatted(shorten(title), netAmount, feeAmount));
     }
 
+    /** 문의 답변 (T17). 공구와 상관없는 알림이라 groupBuyId 없이. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void inquiryAnswered(Long userId, String inquiryTitle) {
+        send(java.util.List.of(userId), NotificationType.INQUIRY_ANSWERED, null,
+                "문의 '%s'에 답변이 달렸어요.".formatted(shorten(inquiryTitle)));
+    }
+
     private void send(Collection<Long> userIds, NotificationType type, Long groupBuyId, String message) {
         notificationRepository.saveAll(userIds.stream().distinct()
                 .map(userId -> Notification.of(userId, type, groupBuyId, message)).toList());

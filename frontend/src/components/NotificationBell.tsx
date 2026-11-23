@@ -6,6 +6,7 @@ import {
   NOTIFICATIONS_CHANGED,
   notifyNotificationsChanged,
   readAllNotifications,
+  notificationLink,
   readNotification,
   type NotificationItem,
   type NotificationList,
@@ -83,7 +84,7 @@ export function NotificationBell() {
         .then(notifyNotificationsChanged)
         .catch(() => {})
     }
-    navigate(`/group-buys/${item.groupBuyId}`)
+    navigate(notificationLink(item))
   }
 
   const handleReadAll = () => {

@@ -38,6 +38,14 @@ export function MePage() {
       <Link to="/me/group-buys" className="mt-2 block rounded-lg border border-gray-300 py-2.5 text-center font-medium">
         내 공구 보기
       </Link>
+      <Link to="/inquiries" className="mt-2 block rounded-lg border border-gray-300 py-2.5 text-center font-medium">
+        문의·피드백
+      </Link>
+      {me.role === 'ADMIN' ? (
+        <Link to="/admin" className="mt-2 block rounded-lg border border-gray-900 py-2.5 text-center font-medium">
+          관리자 화면
+        </Link>
+      ) : null}
       {/* 휴대폰에선 헤더에 로그아웃이 없어서 여기에 둔다 */}
       <button type="button" onClick={handleLogout} className="mt-6 w-full text-sm text-gray-500 underline">
         로그아웃

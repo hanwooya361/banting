@@ -61,6 +61,11 @@ public enum ErrorCode {
     TRIAL_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "체험은 하루 5번까지 할 수 있어요. 내일 다시 해 주세요"),
     TRIAL_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "지금은 체험을 시작할 수 없어요. 잠시 후 다시 해 주세요"),
 
+    // 문의 (T17)
+    INQUIRY_NOT_FOUND(HttpStatus.NOT_FOUND, "문의를 찾을 수 없어요"),
+    INQUIRY_DAILY_LIMIT(HttpStatus.TOO_MANY_REQUESTS, "문의는 하루 10건까지 남길 수 있어요. 내일 다시 남겨 주세요"),
+    INVALID_ISSUE_URL(HttpStatus.BAD_REQUEST, "이슈 링크는 http:// 또는 https://로 시작하는 주소여야 해요"),
+
     // 수령 투표 (T15)
     PICKUP_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "수령 후보를 찾을 수 없어요"),
     PICKUP_VOTE_NOT_ALLOWED(HttpStatus.FORBIDDEN, "결제를 마친 참여자만 투표할 수 있어요"),

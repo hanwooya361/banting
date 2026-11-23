@@ -73,10 +73,21 @@ export function Layout() {
         <p>
           반띵은 통신판매중개자로서 거래 당사자가 아니며, 상품 구매·전달에 대한 책임은 개설자와 참여자에게 있습니다.
         </p>
-        <p className="mt-2">
+        <p className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
           <Link to="/intro" className="underline hover:text-gray-800">
             반띵 소개
           </Link>
+          <Link to="/notices" className="underline hover:text-gray-800">
+            업데이트 노트
+          </Link>
+          <Link to="/inquiries" className="underline hover:text-gray-800">
+            문의·피드백
+          </Link>
+          {me?.role === 'ADMIN' ? (
+            <Link to="/admin" className="underline hover:text-gray-800">
+              관리자
+            </Link>
+          ) : null}
         </p>
       </footer>
     </div>
