@@ -102,6 +102,10 @@ public class GroupBuy extends BaseTimeEntity {
     @Column(name = "demo_type", length = 10)
     private DemoType demoType;
 
+    /** 체험 공구(TRIAL)를 만든 방문자. 체험 공구만 값이 있고, 이 방문자만 보고 참여할 수 있다 (T16.5). */
+    @Column(name = "trial_user_id")
+    private Long trialUserId;
+
     /**
      * 개설자 동네 좌표. 회원 좌표를 그대로 복사한다 (GeoPoint.toWkt()와 같은 (위도 경도) WKT).
      * POINT 컬럼을 문자열로 다루되, 쓸 때 ST_PointFromText, 읽을 때 ST_AsText를 DB가 적용한다.
@@ -182,6 +186,39 @@ public class GroupBuy extends BaseTimeEntity {
         return g;
     }
 
+    /**
+     * 체험 공구 (T16.5): 시드 공구의 상품·사진·동네를 복사해 균등 n명, 마감 몇 분 뒤로 만든다.
+     * 일반 개설 규칙(마감 1시간~14일)을 거치지 않는 유일한 생성 경로라 체험 전용 팩토리로 분리했다.
+     * 개설자는 데모 봇이고, 상태 전이(DRAFT → OPEN → CONFIRMED …)는 일반 공구와 같은 메서드를 탄다.
+     */
+    public static GroupBuy trial(GroupBuy seed, Long botHostId, Long trialUserId, int people,
+                                 LocalDateTime deadlineAt) {
+        if (seed.demoType != DemoType.SEED) {
+            throw new IllegalArgumentException("체험 공구는 시드 공구에서만 만든다");
+        }
+        GroupBuy g = new GroupBuy();
+        g.hostId = botHostId;
+        g.title = seed.title;
+        g.description = seed.description;
+        g.category = seed.category;
+        g.productUrl = seed.productUrl;
+        g.priceType = PriceType.EQUAL;
+        g.totalPrice = seed.totalPrice;
+        g.totalQuantity = seed.totalQuantity;
+        g.unitLabel = seed.unitLabel;
+        g.capacityUnits = people;
+        g.minUnitsPerPerson = 1;
+        g.reservedUnits = 1;   // 개설자(봇) 몫
+        g.status = GroupBuyStatus.DRAFT;
+        g.demoType = DemoType.TRIAL;
+        g.trialUserId = trialUserId;
+        g.locationWkt = seed.locationWkt;
+        g.neighborhoodName = seed.neighborhoodName;
+        g.deadlineAt = deadlineAt;
+        g.pricing();
+        return g;
+    }
+
     public Pricing pricing() {
         try {
             return priceType == PriceType.EQUAL
@@ -243,8 +280,19 @@ public class GroupBuy extends BaseTimeEntity {
         return status == GroupBuyStatus.DRAFT;
     }
 
-    public boolean isDemo() {
-        return demoType != null;
+    /** 시드(예시) 공구: 참여·투표·스케줄러 대상이 아니다. */
+    public boolean isSeed() {
+        return demoType == DemoType.SEED;
+    }
+
+    /** 체험 공구 (T16.5): 실제 로직을 그대로 타지만 만든 방문자에게만 보인다. */
+    public boolean isTrial() {
+        return demoType == DemoType.TRIAL;
+    }
+
+    /** 이 사람이 볼 수 있는 체험 공구인지. 체험 공구가 아니면 항상 true. */
+    public boolean isVisibleTo(Long viewerId) {
+        return !isTrial() || trialUserId.equals(viewerId) || hostId.equals(viewerId);
     }
 
     // ───── 참여·결제 (T11) ─────

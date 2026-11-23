@@ -48,12 +48,12 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             """)
     List<Object[]> findMineWithGroupBuy(@Param("userId") Long userId, Pageable pageable);
 
-    // ───── 스케줄러 대상 (T14). 시드 공구 제외 ─────
+    // ───── 스케줄러 대상 (T14). 시드 공구 제외 (체험 공구는 포함, T16.5) ─────
 
     /** 결제 대기가 cutoff 전에 만료된 참여자(개설자 제외: 개설자 대기는 DRAFT 만료가 공구째 정리). 인덱스 (status, expires_at). */
     @Query("""
             SELECT p.id FROM Participation p, com.banting.groupbuy.GroupBuy g
-            WHERE g.id = p.groupBuyId AND g.demoType IS NULL AND p.host = FALSE
+            WHERE g.id = p.groupBuyId AND (g.demoType IS NULL OR g.demoType <> com.banting.groupbuy.DemoType.SEED) AND p.host = FALSE
               AND p.status = com.banting.participation.ParticipationStatus.PENDING_PAYMENT AND p.expiresAt < :cutoff
             ORDER BY p.id
             """)

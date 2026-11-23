@@ -44,7 +44,8 @@ public class PickupService {
         GroupBuy groupBuy = groupBuyRepository.findByIdForUpdate(groupBuyId)
                 .filter(g -> !g.isDraft() || g.getHostId().equals(userId))   // 결제 전 공구는 남에게 없는 공구
                 .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND));
-        if (groupBuy.isDemo()) {
+        // 체험 공구(T16.5)는 방문자와 봇만 결제할 수 있으므로 아래 "결제한 사람만" 확인이 남의 투표도 막는다
+        if (groupBuy.isSeed()) {
             throw new BusinessException(ErrorCode.DEMO_GROUP_BUY);
         }
         if (!groupBuy.isOpen() || !groupBuy.getDeadlineAt().isAfter(LocalDateTime.now(clock))) {

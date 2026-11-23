@@ -36,12 +36,12 @@ public interface GroupBuyRepository extends JpaRepository<GroupBuy, Long> {
             """, nativeQuery = true)
     int reserveUnits(@Param("id") Long id, @Param("units") int units, @Param("now") LocalDateTime now);
 
-    // ───── 스케줄러 대상 (T14). ID만 가져오고, 처리는 한 건씩 잠근 뒤 상태를 다시 확인한다. 시드 공구 제외 ─────
+    // ───── 스케줄러 대상 (T14). ID만 가져오고, 처리는 한 건씩 잠근 뒤 상태를 다시 확인한다. 시드 공구 제외 (체험 공구는 포함, T16.5) ─────
 
     /** 마감이 cutoff 이전인 모집 중 공구. 인덱스 (status, deadline_at). */
     @Query("""
             SELECT g.id FROM GroupBuy g
-            WHERE g.status = com.banting.groupbuy.GroupBuyStatus.OPEN AND g.deadlineAt < :cutoff AND g.demoType IS NULL
+            WHERE g.status = com.banting.groupbuy.GroupBuyStatus.OPEN AND g.deadlineAt < :cutoff AND (g.demoType IS NULL OR g.demoType <> com.banting.groupbuy.DemoType.SEED)
             ORDER BY g.deadlineAt
             """)
     List<Long> findOverdueOpenIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
@@ -50,7 +50,7 @@ public interface GroupBuyRepository extends JpaRepository<GroupBuy, Long> {
     @Query("""
             SELECT g.id FROM GroupBuy g, com.banting.participation.Participation p
             WHERE p.groupBuyId = g.id AND p.host = TRUE
-              AND g.status = com.banting.groupbuy.GroupBuyStatus.DRAFT AND g.demoType IS NULL
+              AND g.status = com.banting.groupbuy.GroupBuyStatus.DRAFT AND (g.demoType IS NULL OR g.demoType <> com.banting.groupbuy.DemoType.SEED)
               AND p.status = com.banting.participation.ParticipationStatus.PENDING_PAYMENT AND p.expiresAt < :cutoff
             ORDER BY g.id
             """)
@@ -60,8 +60,34 @@ public interface GroupBuyRepository extends JpaRepository<GroupBuy, Long> {
     @Query("""
             SELECT g.id FROM GroupBuy g, com.banting.pickup.PickupOption o
             WHERE o.groupBuyId = g.id AND o.selected = TRUE
-              AND g.status = com.banting.groupbuy.GroupBuyStatus.PICKUP AND g.demoType IS NULL AND o.pickupAt < :cutoff
+              AND g.status = com.banting.groupbuy.GroupBuyStatus.PICKUP AND (g.demoType IS NULL OR g.demoType <> com.banting.groupbuy.DemoType.SEED) AND o.pickupAt < :cutoff
             ORDER BY o.pickupAt
             """)
     List<Long> findOverduePickupIds(@Param("cutoff") LocalDateTime cutoff, Pageable pageable);
+
+    // ───── 체험 모드 (T16.5) ─────
+
+    /** 이 방문자의 끝나지 않은 체험 공구 (개설 대기·모집 중·확정·수령 대기). 최대 1개가 정상. */
+    @Query("""
+            SELECT g.id FROM GroupBuy g
+            WHERE g.trialUserId = :userId
+              AND g.status IN (com.banting.groupbuy.GroupBuyStatus.DRAFT, com.banting.groupbuy.GroupBuyStatus.OPEN,
+                               com.banting.groupbuy.GroupBuyStatus.CONFIRMED, com.banting.groupbuy.GroupBuyStatus.PICKUP)
+            ORDER BY g.id DESC
+            """)
+    List<Long> findActiveTrialIds(@Param("userId") Long userId);
+
+    /** since 이후 이 방문자가 만든 체험 수. 인덱스 (trial_user_id, created_at). */
+    @Query("SELECT COUNT(g) FROM GroupBuy g WHERE g.trialUserId = :userId AND g.createdAt >= :since")
+    long countTrialsSince(@Param("userId") Long userId, @Param("since") LocalDateTime since);
+
+    /** 봇이 진행할 체험 공구 (모집 중·확정·수령 대기). */
+    @Query("""
+            SELECT g.id FROM GroupBuy g
+            WHERE g.demoType = com.banting.groupbuy.DemoType.TRIAL
+              AND g.status IN (com.banting.groupbuy.GroupBuyStatus.OPEN, com.banting.groupbuy.GroupBuyStatus.CONFIRMED,
+                               com.banting.groupbuy.GroupBuyStatus.PICKUP)
+            ORDER BY g.id
+            """)
+    List<Long> findTrialIdsInProgress(Pageable pageable);
 }

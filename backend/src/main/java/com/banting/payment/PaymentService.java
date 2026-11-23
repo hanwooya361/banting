@@ -109,7 +109,8 @@ public class PaymentService {
                 ? now
                 : approval.approvedAt().atZoneSameInstant(clock.getZone()).toLocalDateTime();
         try {
-            return tx.execute(status -> apply(groupBuy.getId(), participation.getId(), orderId, paymentKey, approvedAt));
+            return tx.execute(status -> apply(groupBuy.getId(), participation.getId(), orderId, paymentKey, false,
+                    approvedAt));
         } catch (RuntimeException e) {
             // 4) 보상: 토스에서는 결제됐지만 우리 쪽 반영이 실패 → 결제 취소
             log.warn("결제 반영 실패, 토스 결제 취소 orderId={}: {}", orderId, e.toString());
@@ -118,20 +119,54 @@ public class PaymentService {
     }
 
     /**
+     * 체험 봇 결제 (T16.5). 토스를 부르지 않는 DEMO 결제로, 반영은 토스 결제와 같은 {@link #apply}를 탄다
+     * (paid_units 증가, 정원이 차면 확정·1위 수령 일정·알림까지 그대로). HTTP로는 열려 있지 않고 체험 봇만 부른다.
+     * 체험 공구가 아니면 거부한다. 토스가 없으니 실패해도 보상 취소가 필요 없다 (결제는 READY로 남고 만료가 정리).
+     */
+    public ConfirmResponse confirmDemo(Long userId, String orderId) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
+        Participation participation = participationRepository.findById(payment.getParticipationId()).orElseThrow();
+        if (!participation.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.PAYMENT_NOT_FOUND);
+        }
+        GroupBuy groupBuy = groupBuyRepository.findById(participation.getGroupBuyId()).orElseThrow();
+        if (!groupBuy.isTrial()) {
+            throw new IllegalStateException("DEMO 결제는 체험 공구에서만: groupBuyId=" + groupBuy.getId());
+        }
+        if (!payment.isReady()) {
+            throw new BusinessException(ErrorCode.PAYMENT_NOT_PENDING);
+        }
+        if (!participation.isPending() || participation.isExpired(now) || !groupBuy.getDeadlineAt().isAfter(now)) {
+            throw new BusinessException(ErrorCode.PAYMENT_EXPIRED);
+        }
+        return tx.execute(status -> apply(groupBuy.getId(), participation.getId(), orderId, null, true, now));
+    }
+
+    /**
      * 잠금 순서는 공구 → 참여 → 결제로 고정 (참여 요청도 같은 순서라 교착을 줄인다).
      * 공구 행을 잠가 같은 공구의 승인 반영끼리는 한 줄로 세운다 (paid_units·확정 판단이 엇갈리지 않게).
      * 트랜잭션 안에서는 잠금 조회로 처음 읽는다. 먼저 일반 조회로 읽어 두면 잠금 조회가 캐시된 옛 값을 돌려준다.
      */
     private ConfirmResponse apply(Long groupBuyId, Long participationId, String orderId, String paymentKey,
-                                  LocalDateTime approvedAt) {
+                                  boolean demo, LocalDateTime approvedAt) {
         GroupBuy groupBuy = groupBuyRepository.findByIdForUpdate(groupBuyId).orElseThrow();
         Participation participation = participationRepository.findByIdForUpdate(participationId).orElseThrow();
         Payment payment = paymentRepository.findByOrderIdForUpdate(orderId).orElseThrow();
 
-        if (payment.isDone() && paymentKey.equals(payment.getPaymentKey())) {
+        if (payment.isDone() && (demo ? payment.isDemo() : paymentKey.equals(payment.getPaymentKey()))) {
             return response(groupBuy, participation, payment);   // 동시에 온 같은 요청이 먼저 반영함
         }
-        payment.done(paymentKey, approvedAt);
+        if (demo) {
+            if (!groupBuy.isTrial()) {
+                // 잠근 뒤 한 번 더: 토스를 거치지 않는 결제가 실제 공구에 들어가는 일은 어떤 경로로도 없어야 한다
+                throw new IllegalStateException("DEMO 결제는 체험 공구에서만: groupBuyId=" + groupBuyId);
+            }
+            payment.doneByDemo(approvedAt);
+        } else {
+            payment.done(paymentKey, approvedAt);
+        }
         participation.pay();
         groupBuy.markPaid(participation.getUnits(), participation.isHost(), LocalDateTime.now(clock));
         if (groupBuy.getStatus() == GroupBuyStatus.CONFIRMED) {

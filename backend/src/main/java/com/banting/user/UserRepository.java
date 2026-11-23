@@ -12,6 +12,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    /** 회원 행 잠금 (T16.5): 같은 회원의 체험 시작 요청을 한 줄로 세워 "진행 중 1개·하루 5번" 확인이 겹치지 않게. */
+    @Query(value = "SELECT id FROM users WHERE id = :id FOR UPDATE", nativeQuery = true)
+    Optional<Long> lockById(@Param("id") Long id);
+
     boolean existsByEmail(String email);
 
     boolean existsByNickname(String nickname);

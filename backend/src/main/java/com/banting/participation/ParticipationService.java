@@ -63,16 +63,35 @@ public class ParticipationService {
     }
 
     public PaymentOrder participate(Long userId, Long groupBuyId, int units) {
-        LocalDateTime now = LocalDateTime.now(clock);
         GroupBuy groupBuy = groupBuyRepository.findById(groupBuyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND));
-        boolean host = groupBuy.getHostId().equals(userId);
-        if (groupBuy.isDraft() && !host) {
+        if (groupBuy.isDraft() && !groupBuy.getHostId().equals(userId)) {
             throw new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND);   // 결제 전 공구는 남에게 없는 공구
         }
-        if (groupBuy.isDemo()) {
+        if (!groupBuy.isVisibleTo(userId)) {
+            throw new BusinessException(ErrorCode.GROUP_BUY_NOT_FOUND);   // 남의 체험 공구 (T16.5)
+        }
+        if (groupBuy.isSeed()) {
             throw new BusinessException(ErrorCode.DEMO_GROUP_BUY);
         }
+        return order(groupBuy, userId, units);
+    }
+
+    /**
+     * 체험 봇 참여 (T16.5). 화면을 흉내 내지 않고 사람과 같은 자리 잡기·주문 발급 로직을 탄다 (봇 개설자 몫 결제 포함).
+     * HTTP로는 열려 있지 않고 체험 봇만 부른다. 체험 공구가 아니면 거부.
+     */
+    public PaymentOrder participateAsTrialBot(Long botId, Long groupBuyId, int units) {
+        GroupBuy groupBuy = groupBuyRepository.findById(groupBuyId).orElseThrow();
+        if (!groupBuy.isTrial()) {
+            throw new IllegalStateException("체험 봇은 체험 공구에만 참여: groupBuyId=" + groupBuyId);
+        }
+        return order(groupBuy, botId, units);
+    }
+
+    private PaymentOrder order(GroupBuy groupBuy, Long userId, int units) {
+        LocalDateTime now = LocalDateTime.now(clock);
+        boolean host = groupBuy.getHostId().equals(userId);
         try {
             return tx.execute(status -> host
                     ? hostOrder(groupBuy, userId, now)

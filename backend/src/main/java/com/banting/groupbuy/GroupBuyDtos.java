@@ -92,7 +92,8 @@ public final class GroupBuyDtos {
             HostView host,
             boolean mine,
             Long myAmount,
-            boolean demo,
+            boolean demo,                  // 시드(예시) 공구 (T09.5). 참여 버튼·상품 링크를 숨김
+            boolean trial,                 // 체험 공구 (T16.5). 이웃은 봇, 방문자 몫만 토스 테스트 결제
             MyParticipation myParticipation,
             GroupBuy.FailReason failReason,
             Long myPickupVoteOptionId,     // 내가 투표한 수령 후보 (T15), 안 했으면 null

@@ -30,7 +30,9 @@ export type GroupBuyDetail = {
   host: { nickname: string }
   mine: boolean
   myAmount: number | null
-  demo: boolean // 체험 동네 예시 공구 (T09.5)
+  demo: boolean
+  trial: boolean // 체험 공구 (T16.5): 이웃은 봇, 내 몫만 토스 테스트 결제
+// 체험 동네 예시 공구 (T09.5)
   // 보는 사람의 참여 (T11). 없으면 null
   myParticipation: {
     id: number
