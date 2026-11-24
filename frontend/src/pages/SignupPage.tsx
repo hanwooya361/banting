@@ -14,6 +14,8 @@ export function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  // 개인정보처리방침 동의 (T18). 베타 기간엔 화면에서만 확인하고 서버에 동의 시각은 저장하지 않음 (devlog IMPROVE)
+  const [agreed, setAgreed] = useState(false)
 
   const update = (field: Field) => (e: ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
@@ -79,10 +81,25 @@ export function SignupPage() {
           onChange={update('nickname')}
           error={fieldErrors.nickname}
         />
+        <label className="flex items-start gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-orange-500"
+          />
+          <span>
+            <Link to="/privacy" target="_blank" className="font-medium underline">
+              개인정보처리방침
+            </Link>
+            을 읽었고, 이메일·닉네임·동네 정보를 모으는 데 동의해요. (필수)
+          </span>
+        </label>
+        <p className="-mt-2 text-xs text-gray-500">반띵은 베타예요. 결제는 테스트라 실제 돈이 나가지 않아요.</p>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !agreed}
           className="rounded-lg bg-orange-500 py-2.5 font-medium text-white disabled:opacity-50"
         >
           {submitting ? '가입 중…' : '가입하기'}
