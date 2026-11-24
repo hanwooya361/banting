@@ -1,5 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/context'
+import { BetaBanner } from './BetaBanner'
 import { NotificationBell } from './NotificationBell'
 
 // 표지(S00)는 화면을 가로로 꽉 채우고 헤더를 배경 위에 투명하게 띄운다
@@ -24,6 +25,8 @@ export function Layout() {
             : 'sticky top-0 z-20 border-b border-gray-100 bg-white/90 backdrop-blur'
         }
       >
+        {/* 헤더 안에 두어 표지(헤더가 배경 위에 떠 있음)와 일반 화면 모두에서 맨 위에 보이게 (T18) */}
+        <BetaBanner />
         <div className={`mx-auto flex h-14 items-center justify-between px-4 ${fullBleed ? 'max-w-5xl' : 'max-w-3xl'}`}>
           {/* 로그인한 사람에게 로고는 "목록으로", 처음 온 사람에게는 "표지로" */}
           <Link to={me ? '/group-buys' : '/'} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xl font-bold text-orange-500">
@@ -82,6 +85,9 @@ export function Layout() {
           </Link>
           <Link to="/inquiries" className="underline hover:text-gray-800">
             문의·피드백
+          </Link>
+          <Link to="/privacy" className="font-semibold underline hover:text-gray-800">
+            개인정보처리방침
           </Link>
           {me?.role === 'ADMIN' ? (
             <Link to="/admin" className="underline hover:text-gray-800">
