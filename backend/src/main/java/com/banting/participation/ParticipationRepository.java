@@ -50,6 +50,22 @@ public interface ParticipationRepository extends JpaRepository<Participation, Lo
             """)
     List<Object[]> findMineWithGroupBuy(@Param("userId") Long userId, Pageable pageable);
 
+    /**
+     * 탈퇴를 막는 참여가 있는지 (T22): 끝나지 않은 공구의 결제 대기·결제 완료(개설자 몫 포함), 또는 어디서든 환불 진행 중.
+     * 돈이나 수령이 걸린 상태에서 연락할 사람이 사라지지 않게. 시드 공구는 제외.
+     */
+    @Query("""
+            SELECT COUNT(p) > 0 FROM Participation p, com.banting.groupbuy.GroupBuy g
+            WHERE g.id = p.groupBuyId AND p.userId = :userId
+              AND (g.demoType IS NULL OR g.demoType <> com.banting.groupbuy.DemoType.SEED)
+              AND (p.status = com.banting.participation.ParticipationStatus.REFUND_PENDING
+                   OR (p.status IN (com.banting.participation.ParticipationStatus.PENDING_PAYMENT,
+                                    com.banting.participation.ParticipationStatus.PAID)
+                       AND g.status IN (com.banting.groupbuy.GroupBuyStatus.DRAFT, com.banting.groupbuy.GroupBuyStatus.OPEN,
+                                        com.banting.groupbuy.GroupBuyStatus.CONFIRMED, com.banting.groupbuy.GroupBuyStatus.PICKUP)))
+            """)
+    boolean existsBlockingWithdrawal(@Param("userId") Long userId);
+
     // ───── 스케줄러 대상 (T14). 시드 공구 제외 (체험 공구는 포함, T16.5) ─────
 
     /** 결제 대기가 cutoff 전에 만료된 참여자(개설자 제외: 개설자 대기는 DRAFT 만료가 공구째 정리). 인덱스 (status, expires_at). */

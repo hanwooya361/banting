@@ -19,6 +19,11 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     long countByUserIdAndReadAtIsNull(Long userId);
 
+    /** 탈퇴 (T22): 알림은 거래 기록이 아니라 개인 화면용이라 지운다. */
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.userId = :userId")
+    int deleteByUserId(@Param("userId") Long userId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Notification n SET n.readAt = :now, n.updatedAt = :now WHERE n.userId = :userId AND n.readAt IS NULL")
     int readAll(@Param("userId") Long userId, @Param("now") LocalDateTime now);

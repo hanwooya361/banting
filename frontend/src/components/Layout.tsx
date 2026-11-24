@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/context'
 import { BetaBanner } from './BetaBanner'
@@ -10,7 +11,10 @@ const FULL_BLEED_PATHS = ['/', '/intro']
 export function Layout() {
   const { me, loading, logout } = useAuth()
   const navigate = useNavigate()
-  const fullBleed = FULL_BLEED_PATHS.includes(useLocation().pathname)
+  const location = useLocation()
+  const fullBleed = FULL_BLEED_PATHS.includes(location.pathname)
+  // 다른 화면이 이동하면서 넘긴 안내 한 줄 (예: 탈퇴 완료, T22)
+  const notice = (location.state as { notice?: string } | null)?.notice
 
   const handleLogout = async () => {
     await logout()
@@ -19,6 +23,10 @@ export function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white text-gray-900">
+      {/* 베타 배너는 헤더 밖, 문서 흐름 안에 둔다. 헤더 안에 두면 휴대폰에서 두 줄이 될 때 표지의 떠 있는 헤더가
+          그만큼 길어져 본문을 가렸다 (T22 중 발견). 아래 상자가 relative라 표지 헤더는 배너 바로 아래부터 뜬다 */}
+      <BetaBanner />
+      <div className="relative flex flex-1 flex-col">
       <header
         className={
           fullBleed
@@ -26,8 +34,6 @@ export function Layout() {
             : 'sticky top-0 z-20 border-b border-gray-100 bg-white/90 backdrop-blur'
         }
       >
-        {/* 헤더 안에 두어 표지(헤더가 배경 위에 떠 있음)와 일반 화면 모두에서 맨 위에 보이게 (T18) */}
-        <BetaBanner />
         <div className={`mx-auto flex h-14 items-center justify-between px-4 ${fullBleed ? 'max-w-5xl' : 'max-w-3xl'}`}>
           {/* 로그인한 사람에게 로고는 "목록으로", 처음 온 사람에게는 "표지로" */}
           <Link to={me ? '/group-buys' : '/'} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xl font-bold text-orange-500">
@@ -98,7 +104,27 @@ export function Layout() {
           ) : null}
         </p>
       </footer>
+      </div>
       <FeedbackButton />
+      {notice ? <Toast key={location.key} message={notice} /> : null}
     </div>
+  )
+}
+
+// 화면 위에 잠깐 떠 있는 안내 (T22 탈퇴 완료 등). 레이아웃을 밀지 않게 fixed, 5초 뒤 사라짐
+function Toast({ message }: { message: string }) {
+  const [visible, setVisible] = useState(true)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setVisible(false), 5000)
+    return () => window.clearTimeout(timer)
+  }, [])
+  if (!visible) return null
+  return (
+    <p
+      role="status"
+      className="fixed inset-x-4 top-4 z-50 mx-auto max-w-md rounded-xl bg-gray-900 px-4 py-3 text-center text-sm text-white shadow-lg"
+    >
+      {message}
+    </p>
   )
 }

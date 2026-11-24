@@ -6,7 +6,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,6 +21,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final UserRepository userRepository;
+    private final WithdrawalService withdrawalService;
+
+    public record WithdrawalRequest(@NotBlank(message = "비밀번호를 입력해 주세요") String password) {
+    }
+
+    /** 회원 탈퇴 (T22). 성공하면 204, 화면은 바로 로그아웃한다. */
+    @PostMapping("/me/withdrawal")
+    public ResponseEntity<Void> withdraw(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody WithdrawalRequest request) {
+        withdrawalService.withdraw(Long.valueOf(jwt.getSubject()), request.password());
+        return ResponseEntity.noContent().build();
+    }
 
     /** 내 정보. JWT의 sub에 회원 id가 들어 있다. */
     @GetMapping("/me")
