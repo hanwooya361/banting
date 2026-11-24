@@ -67,7 +67,7 @@ class LocationIntegrationTest {
     void signupAndLogin() throws Exception {
         DatabaseCleaner.clean(jdbc);
         mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"loc@example.com\",\"password\":\"password123\",\"nickname\":\"동네주민\"}"));
+                .content("{\"email\":\"loc@example.com\",\"password\":\"password123\",\"nickname\":\"동네주민\",\"agreePrivacy\":true}"));
         String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"loc@example.com\",\"password\":\"password123\"}"))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);

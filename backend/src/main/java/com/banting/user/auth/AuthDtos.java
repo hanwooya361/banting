@@ -1,7 +1,9 @@
 package com.banting.user.auth;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
@@ -26,7 +28,12 @@ public final class AuthDtos {
             @NotBlank(message = "닉네임을 입력해 주세요")
             @Pattern(regexp = "^[가-힣A-Za-z0-9]{2,20}$",
                     message = "닉네임은 한글·영문·숫자 2~20자로 만들어 주세요")
-            String nickname) {
+            String nickname,
+
+            // 개인정보처리방침 동의 (T21). 빠지거나 false면 가입하지 않는다 (화면 체크만으로는 우회 가능하므로 서버에서)
+            @NotNull(message = "개인정보처리방침에 동의해 주세요")
+            @AssertTrue(message = "개인정보처리방침에 동의해 주세요")
+            Boolean agreePrivacy) {
 
         // 검증(@Email 등)보다 먼저 실행되므로, 복사·붙여넣기로 붙은 앞뒤 공백 때문에 거부되지 않게 정리
         public SignupRequest {

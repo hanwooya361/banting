@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signup = useCallback(
     async (email: string, password: string, nickname: string) => {
-      await api('/api/auth/signup', { method: 'POST', body: { email, password, nickname } })
+      await api('/api/auth/signup', { method: 'POST', body: { email, password, nickname, agreePrivacy: true } })   // 가입 화면에서 동의 체크를 해야 호출됨 (T21)
       // 가입 직후 바로 로그인시켜 한 번 더 입력하지 않게 한다
       await login(email, password)
     },

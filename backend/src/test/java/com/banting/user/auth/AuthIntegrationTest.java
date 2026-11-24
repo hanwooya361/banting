@@ -233,10 +233,32 @@ class AuthIntegrationTest {
 
     // ───── 헬퍼 ─────
 
+    // ───── 개인정보처리방침 동의 (T21) ─────
+
+    @Test
+    void 개인정보처리방침에_동의하지_않으면_가입할_수_없다() throws Exception {
+        for (String agree : new String[] {"", ", \"agreePrivacy\": false", ", \"agreePrivacy\": null"}) {
+            mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"email\": \"%s\", \"password\": \"%s\", \"nickname\": \"%s\"%s}"
+                                    .formatted(EMAIL, PASSWORD, NICKNAME, agree)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fieldErrors[?(@.field == 'agreePrivacy')]").exists());
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users", Integer.class)).isZero();
+    }
+
+    @Test
+    void 동의하고_가입하면_동의_시각이_저장된다() throws Exception {
+        signup(EMAIL, PASSWORD, NICKNAME).andExpect(status().isCreated());
+
+        assertThat(jdbc.queryForObject("SELECT privacy_agreed_at IS NOT NULL FROM users WHERE email = ?",
+                Boolean.class, EMAIL)).isTrue();
+    }
+
     private org.springframework.test.web.servlet.ResultActions signup(String email, String password, String nickname)
             throws Exception {
         String json = """
-                {"email": "%s", "password": "%s", "nickname": "%s"}
+                {"email": "%s", "password": "%s", "nickname": "%s", "agreePrivacy": true}
                 """.formatted(email, password, nickname);
         return mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(json));
     }

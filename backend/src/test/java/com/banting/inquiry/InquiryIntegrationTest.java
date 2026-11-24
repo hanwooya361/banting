@@ -236,7 +236,7 @@ class InquiryIntegrationTest {
     /** 관리자는 운영에서도 DB로 role을 바꾼다 (T17 결정). 로그인할 때 role이 토큰에 들어가므로 바꾼 뒤 로그인. */
     private String signupAndLogin(String email, String nickname, boolean admin) throws Exception {
         mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"%s\",\"password\":\"password123\",\"nickname\":\"%s\"}".formatted(email, nickname)));
+                .content("{\"email\":\"%s\",\"password\":\"password123\",\"nickname\":\"%s\",\"agreePrivacy\":true}".formatted(email, nickname)));
         if (admin) {
             jdbc.update("UPDATE users SET role = 'ADMIN' WHERE email = ?", email);
         }

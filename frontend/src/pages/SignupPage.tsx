@@ -14,7 +14,7 @@ export function SignupPage() {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  // 개인정보처리방침 동의 (T18). 베타 기간엔 화면에서만 확인하고 서버에 동의 시각은 저장하지 않음 (devlog IMPROVE)
+  // 개인정보처리방침 동의 (T18 화면, T21부터 서버가 동의 여부를 검사하고 동의 시각을 저장)
   const [agreed, setAgreed] = useState(false)
 
   const update = (field: Field) => (e: ChangeEvent<HTMLInputElement>) =>
