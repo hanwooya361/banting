@@ -136,6 +136,24 @@ class WithdrawalIntegrationTest {
     }
 
     @Test
+    void 비밀번호가_없는_간편_가입_회원은_탈퇴라고_입력해서_탈퇴하고_소셜_연결도_끊긴다() throws Exception {
+        // 간편 가입 회원 흉내: 비밀번호 없음 + 카카오 연결 (T23)
+        jdbc.update("UPDATE users SET password_hash = NULL WHERE id = ?", userId);
+        jdbc.update("INSERT INTO user_social_accounts (user_id, provider, provider_user_id, created_at, updated_at) "
+                + "VALUES (?, 'KAKAO', 'k-9', NOW(6), NOW(6))", userId);
+
+        mvc.perform(post("/api/users/me/withdrawal").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"confirmText\":\"네\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("WITHDRAWAL_CONFIRM_REQUIRED"));
+        mvc.perform(post("/api/users/me/withdrawal").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"confirmText\":\"탈퇴\"}"))
+                .andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_social_accounts", Integer.class)).isZero();
+    }
+
+    @Test
     void 로그인하지_않으면_탈퇴할_수_없다() throws Exception {
         mvc.perform(post("/api/users/me/withdrawal").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"password\":\"%s\"}".formatted(PASSWORD))).andExpect(status().isUnauthorized());

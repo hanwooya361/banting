@@ -5,6 +5,7 @@ import com.banting.common.ErrorCode;
 import com.banting.notification.NotificationRepository;
 import com.banting.participation.ParticipationRepository;
 import com.banting.user.auth.RefreshTokenRepository;
+import com.banting.user.oauth.SocialAccountRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -34,17 +35,24 @@ public class WithdrawalService {
     private final ParticipationRepository participationRepository;
     private final NotificationRepository notificationRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final SocialAccountRepository socialAccountRepository;
+
+    /** 비밀번호가 없는 간편 가입 회원(T23)은 이 글자를 직접 입력해 확인한다. */
+    static final String CONFIRM_TEXT = "탈퇴";
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
     @Transactional
-    public void withdraw(Long userId, String password) {
+    public void withdraw(Long userId, String password, String confirmText) {
         userRepository.lockById(userId);   // 같은 회원의 동시 탈퇴 요청을 한 줄로
         User user = userRepository.findById(userId)
                 .filter(u -> !u.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
-        if (password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
-            throw new BusinessException(ErrorCode.INVALID_PASSWORD);
+        boolean confirmed = user.hasPassword()
+                ? password != null && passwordEncoder.matches(password, user.getPasswordHash())
+                : CONFIRM_TEXT.equals(confirmText == null ? null : confirmText.trim());
+        if (!confirmed) {
+            throw new BusinessException(user.hasPassword() ? ErrorCode.INVALID_PASSWORD : ErrorCode.WITHDRAWAL_CONFIRM_REQUIRED);
         }
         if (participationRepository.existsBlockingWithdrawal(userId)) {
             throw new BusinessException(ErrorCode.WITHDRAWAL_BLOCKED);
@@ -54,6 +62,7 @@ public class WithdrawalService {
         userRepository.clearLocation(userId);
         notificationRepository.deleteByUserId(userId);
         refreshTokenRepository.revokeAllOfUser(userId, now);
+        socialAccountRepository.deleteByUserId(userId);   // 같은 카카오·구글 계정으로 다시 가입할 수 있게 (T23)
         log.info("회원 탈퇴 userId={}", userId);
     }
 }

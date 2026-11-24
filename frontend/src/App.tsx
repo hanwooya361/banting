@@ -18,6 +18,8 @@ import { NoticesPage } from './pages/NoticesPage'
 import { AdminPage } from './pages/AdminPage'
 import { PrivacyPage } from './pages/PrivacyPage'
 import { WithdrawPage } from './pages/WithdrawPage'
+import { SocialCallbackPage } from './pages/SocialCallbackPage'
+import { SocialSignupPage } from './pages/SocialSignupPage'
 import { SignupPage } from './pages/SignupPage'
 
 function App() {
@@ -47,6 +49,8 @@ function App() {
         />
         <Route path="notices" element={<NoticesPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
+        <Route path="auth/social" element={<SocialCallbackPage />} />
+        <Route path="auth/social/signup" element={<SocialSignupPage />} />
         <Route
           path="me/withdraw"
           element={

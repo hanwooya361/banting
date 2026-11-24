@@ -17,6 +17,25 @@ banting:
     access-ttl: 30m
     refresh-ttl: 14d
     # secret은 프로필별 파일에서 (local: 개발용 고정값, prod: 서버 .env의 JWT_SECRET)
+  oauth:
+    # 간편 가입·로그인 (T23). 공급자는 client-id와 client-secret이 모두 있어야 켜진다 (비어 있으면 버튼이 안 보임)
+    # local: backend/application-secret.yml / prod: Parameter Store → deploy.sh가 .env에 반영
+    base-url: ${OAUTH_BASE_URL:http://localhost:5180}
+    providers:
+      kakao:
+        # 카카오 로그인은 같은 앱의 REST API 키를 client_id로 쓴다 (동네 설정용 키와 같음)
+        client-id: ${banting.kakao.rest-api-key:}
+        client-secret: ${KAKAO_LOGIN_CLIENT_SECRET:}
+        authorize-uri: https://kauth.kakao.com/oauth/authorize
+        token-uri: https://kauth.kakao.com/oauth/token
+        user-info-uri: https://kapi.kakao.com/v2/user/me
+      google:
+        client-id: ${GOOGLE_CLIENT_ID:}
+        client-secret: ${GOOGLE_CLIENT_SECRET:}
+        authorize-uri: https://accounts.google.com/o/oauth2/v2/auth
+        token-uri: https://oauth2.googleapis.com/token
+        user-info-uri: https://openidconnect.googleapis.com/v1/userinfo
+        scope: openid email profile
   kakao:
     # 카카오 로컬 API REST 키. 비어 있으면 동네 설정·주소 검색이 503으로 응답(앱은 정상 기동)
     # local: backend/application-secret.yml(gitignore) / prod: Parameter Store → deploy.sh가 서버 .env에 반영

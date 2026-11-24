@@ -73,7 +73,8 @@ public class AuthController {
                 .body(tokens.toResponse());
     }
 
-    private static ResponseCookie refreshCookie(String value, Duration maxAge) {
+    /** refresh 쿠키. 간편 가입 콜백(T23)도 같은 쿠키를 굽는다. */
+    public static ResponseCookie refreshCookie(String value, Duration maxAge) {
         return ResponseCookie.from(REFRESH_COOKIE, value)
                 .httpOnly(true)
                 .secure(true)          // HTTPS에서만 전송 (localhost는 브라우저가 예외로 허용)

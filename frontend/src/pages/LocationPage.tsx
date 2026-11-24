@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { useLocation, useNavigate, useSearchParams } from 'react-router'
+import { safeNext } from '../lib/oauth'
 import { useAuth } from '../auth/context'
 import { api, ApiError } from '../lib/api'
 
@@ -20,7 +21,11 @@ function errorMessage(err: unknown) {
 export function LocationPage() {
   const { me, reloadMe } = useAuth()
   const navigate = useNavigate()
-  const onboarding = (useLocation().state as { onboarding?: boolean } | null)?.onboarding ?? false
+  // 가입 직후: 이메일 가입은 state, 간편 가입(T23)은 새로 불러온 페이지라 주소(?onboarding=1&next=)로 알려 준다
+  const [params] = useSearchParams()
+  const onboarding =
+    (useLocation().state as { onboarding?: boolean } | null)?.onboarding ?? params.get('onboarding') === '1'
+  const afterOnboarding = safeNext(params.get('next'))
 
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [radiusM, setRadiusM] = useState(me?.searchRadiusM ?? 1000)
@@ -91,7 +96,7 @@ export function LocationPage() {
         : { radiusM }
       await api('/api/users/me/location', { method: 'PUT', body })
       await reloadMe()
-      navigate(onboarding ? '/group-buys' : '/me', { replace: true })
+      navigate(onboarding ? afterOnboarding : '/me', { replace: true })
     } catch (err) {
       setError(errorMessage(err))
       setBusy(null)

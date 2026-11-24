@@ -36,6 +36,24 @@ sync_secret() {
 sync_secret KAKAO_REST_API_KEY /banting/prod/kakao-rest-api-key
 sync_secret TOSS_SECRET_KEY /banting/prod/toss-secret-key
 
+# 선택 비밀 값: 없어도 배포는 계속하고 그 기능만 꺼진다 (T23 간편 가입 키는 사용자가 나중에 넣음)
+sync_optional_secret() {
+  local env_name="$1" param_name="$2" value
+  if value=$(aws ssm get-parameter --region ap-southeast-2 --name "$param_name" --with-decryption       --query Parameter.Value --output text 2>/dev/null); then
+    umask 077
+    { grep -v "^${env_name}=" .env || true; echo "${env_name}=${value}"; } > .env.tmp
+    mv .env.tmp .env
+    chmod 600 .env
+    echo "비밀 값 반영: ${env_name} (${#value}자)"
+  else
+    { grep -v "^${env_name}=" .env || true; } > .env.tmp && mv .env.tmp .env && chmod 600 .env
+    echo "선택 비밀 값 없음: ${env_name} (해당 기능 꺼짐)"
+  fi
+}
+sync_optional_secret KAKAO_LOGIN_CLIENT_SECRET /banting/prod/kakao-login-client-secret
+sync_optional_secret GOOGLE_CLIENT_ID /banting/prod/google-client-id
+sync_optional_secret GOOGLE_CLIENT_SECRET /banting/prod/google-client-secret
+
 PREV_TAG="$(cat .current_tag 2>/dev/null || true)"
 echo "배포 시작: ${PREV_TAG:-없음} → ${NEW_TAG}"
 

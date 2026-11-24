@@ -75,8 +75,8 @@ public class AuthService {
             passwordEncoder.matches(password, dummyPasswordHash);
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
-        // 이메일 없음·비밀번호 틀림·탈퇴 회원을 같은 오류로 응답 (가입 여부 노출 방지)
-        if (!passwordEncoder.matches(password, user.getPasswordHash()) || user.isDeleted()) {
+        // 이메일 없음·비밀번호 틀림·탈퇴 회원·간편 가입 회원(비밀번호 없음)을 같은 오류로 응답 (가입 여부 노출 방지)
+        if (!user.hasPassword() || !passwordEncoder.matches(password, user.getPasswordHash()) || user.isDeleted()) {
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
         return issueTokens(user);
@@ -122,7 +122,9 @@ public class AuthService {
                 .ifPresent(token -> refreshTokenRepository.revokeIfActive(token.getId(), LocalDateTime.now(clock)));
     }
 
-    private IssuedTokens issueTokens(User user) {
+    /** 로그인 성공 처리: refresh 저장 + access 발급. 비밀번호 로그인과 간편 가입·로그인(T23)이 같이 쓴다. */
+    @Transactional
+    public IssuedTokens issueTokens(User user) {
         String refreshValue = tokenService.createRefreshTokenValue();
         LocalDateTime expiresAt = LocalDateTime.now(clock).plus(jwtProperties.refreshTtl());
         refreshTokenRepository.save(RefreshToken.issue(user.getId(), tokenService.hash(refreshValue), expiresAt));
