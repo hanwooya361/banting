@@ -26,6 +26,8 @@ public enum ErrorCode {
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "이미 가입된 이메일이에요"),
     NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 닉네임이에요"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없어요"),
+    INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "비밀번호가 맞지 않아요"),
+    WITHDRAWAL_BLOCKED(HttpStatus.CONFLICT, "진행 중인 공구나 환불이 있어서 아직 탈퇴할 수 없어요. 끝난 뒤에 다시 시도해 주세요"),
 
     // 동네·위치
     LOCATION_OUT_OF_SERVICE_AREA(HttpStatus.BAD_REQUEST, "국내 위치만 설정할 수 있어요"),

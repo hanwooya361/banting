@@ -16,6 +16,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query(value = "SELECT id FROM users WHERE id = :id FOR UPDATE", nativeQuery = true)
     Optional<Long> lockById(@Param("id") Long id);
 
+    /** 탈퇴 (T22): 좌표는 JPA에 매핑하지 않아 네이티브로 지운다. */
+    @Modifying
+    @Query(value = "UPDATE users SET location = NULL WHERE id = :id", nativeQuery = true)
+    int clearLocation(@Param("id") Long id);
+
     boolean existsByEmail(String email);
 
     boolean existsByNickname(String nickname);

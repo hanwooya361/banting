@@ -25,6 +25,8 @@ import lombok.NoArgsConstructor;
 public class User extends BaseTimeEntity {
 
     public static final int DEFAULT_SEARCH_RADIUS_M = 1000;
+    /** 탈퇴한 회원의 비밀번호 칸. BCrypt 형식이 아니라 어떤 비밀번호와도 일치하지 않는다 (데모 회원과 같은 방식). */
+    static final String WITHDRAWN_PASSWORD_HASH = "!withdrawn-login-disabled";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,6 +67,22 @@ public class User extends BaseTimeEntity {
         user.searchRadiusM = DEFAULT_SEARCH_RADIUS_M;
         user.privacyAgreedAt = privacyAgreedAt;
         return user;
+    }
+
+    /**
+     * 탈퇴 (T22): 행은 남기고(결제·정산 기록이 가리킴) 개인정보만 지운다. 이메일·닉네임은 id로 만든 값으로 바꿔
+     * UNIQUE를 지키면서 같은 이메일·닉네임으로 다시 가입할 수 있게 한다. 비밀번호 칸은 BCrypt가 아닌 값이라 로그인 불가.
+     * 좌표(location)는 JPA에 매핑하지 않으므로 UserRepository.clearLocation이 지운다.
+     */
+    public void withdraw(LocalDateTime now) {
+        if (isDeleted()) {
+            throw new IllegalStateException("이미 탈퇴한 회원: " + id);
+        }
+        this.email = "deleted-" + id + "@deleted.banting.invalid";
+        this.nickname = "탈퇴회원" + id;
+        this.passwordHash = WITHDRAWN_PASSWORD_HASH;
+        this.neighborhoodName = null;
+        this.deletedAt = now;
     }
 
     public boolean isDeleted() {

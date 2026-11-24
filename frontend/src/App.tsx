@@ -17,6 +17,7 @@ import { InquiriesPage } from './pages/InquiriesPage'
 import { NoticesPage } from './pages/NoticesPage'
 import { AdminPage } from './pages/AdminPage'
 import { PrivacyPage } from './pages/PrivacyPage'
+import { WithdrawPage } from './pages/WithdrawPage'
 import { SignupPage } from './pages/SignupPage'
 
 function App() {
@@ -46,6 +47,14 @@ function App() {
         />
         <Route path="notices" element={<NoticesPage />} />
         <Route path="privacy" element={<PrivacyPage />} />
+        <Route
+          path="me/withdraw"
+          element={
+            <RequireAuth>
+              <WithdrawPage />
+            </RequireAuth>
+          }
+        />
         <Route
           path="inquiries"
           element={

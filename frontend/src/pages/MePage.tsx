@@ -50,6 +50,9 @@ export function MePage() {
       <button type="button" onClick={handleLogout} className="mt-6 w-full text-sm text-gray-500 underline">
         로그아웃
       </button>
+      <Link to="/me/withdraw" className="mt-3 block text-center text-xs text-gray-400 underline">
+        탈퇴하기
+      </Link>
     </section>
   )
 }
