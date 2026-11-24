@@ -507,7 +507,7 @@ function ParticipationBox({
 
   const full = g.reservedUnits >= g.capacityUnits
   return (
-    <div className="sticky bottom-3 z-10">
+    <div className="sticky bottom-3 z-10" data-sticky-cta>
       <button
         type="button"
         onClick={onJoin}
