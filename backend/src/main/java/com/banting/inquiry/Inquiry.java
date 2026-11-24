@@ -48,6 +48,10 @@ public class Inquiry extends BaseTimeEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    /** 피드백 버튼으로 남긴 화면 경로 (T20, 예: /group-buys/12). 문의 화면에서 직접 쓰면 null. */
+    @Column(name = "page_path", length = 200)
+    private String pagePath;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private InquiryStatus status;
@@ -61,8 +65,9 @@ public class Inquiry extends BaseTimeEntity {
     @Column(name = "issue_url", length = ISSUE_URL_MAX)
     private String issueUrl;
 
-    public static Inquiry open(Long userId, InquiryType type, String title, String content) {
+    public static Inquiry open(Long userId, InquiryType type, String title, String content, String pagePath) {
         Inquiry inquiry = new Inquiry();
+        inquiry.pagePath = pagePath == null || pagePath.isBlank() ? null : pagePath.trim();
         inquiry.userId = userId;
         inquiry.type = type;
         inquiry.title = title.trim();

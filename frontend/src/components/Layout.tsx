@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/context'
 import { BetaBanner } from './BetaBanner'
+import { FeedbackButton } from './FeedbackButton'
 import { NotificationBell } from './NotificationBell'
 
 // 표지(S00)는 화면을 가로로 꽉 채우고 헤더를 배경 위에 투명하게 띄운다
@@ -69,7 +70,8 @@ export function Layout() {
           </nav>
         </div>
       </header>
-      <main className={fullBleed ? 'w-full flex-1' : 'mx-auto w-full max-w-3xl flex-1 px-4 py-8'}>
+      {/* 아래 여백: 떠 있는 피드백 버튼(T20)이 마지막 내용을 가리지 않게 */}
+      <main className={fullBleed ? 'w-full flex-1' : 'mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-8'}>
         <Outlet />
       </main>
       <footer className="border-t border-gray-100 px-4 py-6 text-center text-xs leading-relaxed text-gray-500">
@@ -96,6 +98,7 @@ export function Layout() {
           ) : null}
         </p>
       </footer>
+      <FeedbackButton />
     </div>
   )
 }

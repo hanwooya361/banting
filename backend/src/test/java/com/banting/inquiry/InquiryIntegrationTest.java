@@ -70,6 +70,30 @@ class InquiryIntegrationTest {
     }
 
     @Test
+    void 피드백_버튼으로_남기면_어느_화면에서_남겼는지_관리자에게_보인다() throws Exception {
+        mvc.perform(post("/api/inquiries").header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"BUG\",\"title\":\"버튼이 안 눌려요\",\"content\":\"참여하기\",\"pagePath\":\"/group-buys/12\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pagePath").value("/group-buys/12"));
+
+        mvc.perform(get("/api/admin/inquiries").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(jsonPath("$[0].pagePath").value("/group-buys/12"));
+    }
+
+    @Test
+    void 화면_주소는_우리_사이트_경로만_받는다() throws Exception {
+        for (String bad : new String[] {"https://evil.example/x", "//evil.example", "javascript:alert(1)", "/" + "a".repeat(200)}) {
+            mvc.perform(post("/api/inquiries").header(HttpHeaders.AUTHORIZATION, "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"type\":\"BUG\",\"title\":\"제목\",\"content\":\"내용\",\"pagePath\":\"%s\"}".formatted(bad)))
+                    .andExpect(status().isBadRequest());
+        }
+        create(userToken, "ETC", "주소 없이", "문의 화면에서 직접 남김").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pagePath").doesNotExist());
+    }
+
+    @Test
     void 문의는_로그인이_필요하고_입력을_검증한다() throws Exception {
         mvc.perform(post("/api/inquiries").contentType(MediaType.APPLICATION_JSON)
                 .content(body("BUG", "제목", "내용"))).andExpect(status().isUnauthorized());

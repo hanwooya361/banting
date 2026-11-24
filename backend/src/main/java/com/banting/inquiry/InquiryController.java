@@ -5,6 +5,7 @@ import com.banting.inquiry.InquiryService.NoticeView;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,14 +29,17 @@ public class InquiryController {
             @NotBlank(message = "제목을 적어 주세요")
             @Size(max = InquiryService.TITLE_MAX, message = "제목은 100자까지예요") String title,
             @NotBlank(message = "내용을 적어 주세요")
-            @Size(max = InquiryService.CONTENT_MAX, message = "내용은 2,000자까지예요") String content) {
+            @Size(max = InquiryService.CONTENT_MAX, message = "내용은 2,000자까지예요") String content,
+            // 피드백 버튼(T20)이 보내는 현재 화면 경로. 우리 사이트 경로만: /로 시작하고 //(다른 사이트)가 아님
+            @Size(max = 200, message = "화면 주소가 너무 길어요")
+            @Pattern(regexp = "^/(?!/)\\S*$", message = "화면 주소가 올바르지 않아요") String pagePath) {
     }
 
     @PostMapping("/api/inquiries")
     public ResponseEntity<InquiryView> create(@AuthenticationPrincipal Jwt jwt,
                                               @Valid @RequestBody CreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(inquiryService.create(
-                Long.valueOf(jwt.getSubject()), request.type(), request.title(), request.content()));
+                Long.valueOf(jwt.getSubject()), request.type(), request.title(), request.content(), request.pagePath()));
     }
 
     /** 내 문의 최신순 (답변 포함). */

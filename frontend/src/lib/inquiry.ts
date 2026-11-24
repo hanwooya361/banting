@@ -18,6 +18,7 @@ export type Inquiry = {
   type: InquiryType
   title: string
   content: string
+  pagePath: string | null // 피드백 버튼으로 남긴 화면 (T20)
   status: InquiryStatus
   answer: string | null
   issueUrl: string | null
@@ -29,7 +30,7 @@ export type AdminInquiry = Inquiry & { authorNickname: string }
 
 export type Notice = { id: number; title: string; content: string; createdAt: string }
 
-export function createInquiry(body: { type: InquiryType; title: string; content: string }) {
+export function createInquiry(body: { type: InquiryType; title: string; content: string; pagePath?: string }) {
   return api<Inquiry>('/api/inquiries', { method: 'POST', body })
 }
 

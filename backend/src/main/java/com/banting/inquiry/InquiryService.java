@@ -31,17 +31,19 @@ public class InquiryService {
     private final NotificationService notificationService;
     private final Clock clock;
 
-    public record InquiryView(Long id, InquiryType type, String title, String content, InquiryStatus status,
-                              String answer, String issueUrl, LocalDateTime createdAt, LocalDateTime answeredAt) {
+    public record InquiryView(Long id, InquiryType type, String title, String content, String pagePath,
+                              InquiryStatus status, String answer, String issueUrl, LocalDateTime createdAt,
+                              LocalDateTime answeredAt) {
 
         static InquiryView of(Inquiry i) {
-            return new InquiryView(i.getId(), i.getType(), i.getTitle(), i.getContent(), i.getStatus(), i.getAnswer(),
-                    i.getIssueUrl(), i.getCreatedAt(), i.getAnsweredAt());
+            return new InquiryView(i.getId(), i.getType(), i.getTitle(), i.getContent(), i.getPagePath(), i.getStatus(),
+                    i.getAnswer(), i.getIssueUrl(), i.getCreatedAt(), i.getAnsweredAt());
         }
     }
 
     /** 관리자 목록 항목: 문의 + 작성자 닉네임 (이메일 등 다른 개인정보는 주지 않음). */
-    public record AdminInquiryView(Long id, InquiryType type, String title, String content, InquiryStatus status,
+    public record AdminInquiryView(Long id, InquiryType type, String title, String content, String pagePath,
+                                   InquiryStatus status,
                                    String answer, String issueUrl, LocalDateTime createdAt, LocalDateTime answeredAt,
                                    String authorNickname) {
     }
@@ -57,13 +59,13 @@ public class InquiryService {
 
     /** 같은 회원의 동시 요청은 회원 행 잠금으로 한 줄로 세워 하루 제한을 넘지 않게. */
     @Transactional
-    public InquiryView create(Long userId, InquiryType type, String title, String content) {
+    public InquiryView create(Long userId, InquiryType type, String title, String content, String pagePath) {
         userRepository.lockById(userId);
         LocalDateTime now = LocalDateTime.now(clock);
         if (inquiryRepository.countByUserIdAndCreatedAtGreaterThanEqual(userId, now.minusDays(1)) >= DAILY_LIMIT) {
             throw new BusinessException(ErrorCode.INQUIRY_DAILY_LIMIT);
         }
-        return InquiryView.of(inquiryRepository.save(Inquiry.open(userId, type, title, content)));
+        return InquiryView.of(inquiryRepository.save(Inquiry.open(userId, type, title, content, pagePath)));
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +87,8 @@ public class InquiryService {
         return inquiryRepository.findForAdmin(status, PageRequest.ofSize(LIST_LIMIT)).stream()
                 .map(row -> {
                     Inquiry i = (Inquiry) row[0];
-                    return new AdminInquiryView(i.getId(), i.getType(), i.getTitle(), i.getContent(), i.getStatus(),
+                    return new AdminInquiryView(i.getId(), i.getType(), i.getTitle(), i.getContent(), i.getPagePath(),
+                            i.getStatus(),
                             i.getAnswer(), i.getIssueUrl(), i.getCreatedAt(), i.getAnsweredAt(), (String) row[1]);
                 })
                 .toList();

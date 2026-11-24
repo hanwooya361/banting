@@ -153,6 +153,7 @@ export function InquiryCard({ item, author }: { item: Inquiry; author?: string }
         </span>
       </div>
       <p className="mt-2 font-semibold">{item.title}</p>
+      {author && item.pagePath ? <p className="mt-0.5 text-xs text-gray-400">남긴 화면: {item.pagePath}</p> : null}
       <p className="mt-1 whitespace-pre-line break-keep text-gray-700 wrap-anywhere">{item.content}</p>
       {item.answer ? (
         <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2">
