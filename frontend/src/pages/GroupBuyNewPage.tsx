@@ -5,6 +5,7 @@ import { ImagePicker, type PickedImage } from '../components/ImagePicker'
 import { TextField } from '../components/TextField'
 import { api, ApiError } from '../lib/api'
 import { startPayment } from '../lib/payment'
+import { parseSharedProduct } from '../lib/productPaste'
 import {
   CATEGORY_LABELS,
   previewPrice,
@@ -54,6 +55,9 @@ export function GroupBuyNewPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [shared, setShared] = useState('')
+  // 붙여넣기로 채운 칸 이름 (T19). 사용자가 확인하도록 안내만 하고, 칸은 언제든 직접 고칠 수 있다
+  const [autoFilled, setAutoFilled] = useState<string[]>([])
 
   if (me && !me.neighborhoodName) {
     return (
@@ -71,6 +75,27 @@ export function GroupBuyNewPage() {
   const capacity = priceType === 'EQUAL' ? Number(people) : Number(totalQuantity)
   const myUnits = priceType === 'EQUAL' ? 1 : Number(hostUnits)
   const preview = previewPrice(price, capacity, myUnits || 0)
+
+  // 쇼핑 앱 "공유 → 복사" 글을 붙여 넣으면 링크·상품명·총수량·단위를 채운다 (T19, 읽은 것만)
+  const handleShared = (text: string) => {
+    setShared(text)
+    const parsed = parseSharedProduct(text)
+    const filled: string[] = []
+    if (parsed.url) {
+      setProductUrl(parsed.url)
+      filled.push('상품 링크')
+    }
+    if (parsed.title) {
+      setTitle(parsed.title)
+      filled.push('상품명')
+    }
+    if (parsed.quantity && parsed.unit) {
+      setTotalQuantity(String(parsed.quantity))
+      setUnitLabel(parsed.unit)
+      filled.push(`총수량 ${parsed.quantity}${parsed.unit}`)
+    }
+    setAutoFilled(filled)
+  }
 
   const updatePickup = (index: number, patch: Partial<PickupDraft>) =>
     setPickups((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)))
@@ -128,6 +153,32 @@ export function GroupBuyNewPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
         <Section title="상품">
+          <div className="flex flex-col gap-1 rounded-xl bg-orange-50 p-3">
+            <label htmlFor="shared" className="text-sm font-medium text-gray-800">
+              빠르게 채우기 (선택)
+            </label>
+            <p className="text-xs text-gray-600">
+              쇼핑 앱에서 상품의 <strong>공유 → 복사</strong>를 누르고 여기에 붙여 넣으면 링크·상품명·수량을 채워요.
+            </p>
+            <textarea
+              id="shared"
+              rows={2}
+              value={shared}
+              onChange={(e) => handleShared(e.target.value)}
+              placeholder={'예: 탐사 3겹 데코 화장지 30m, 30롤, 1팩\nhttps://link.coupang.com/a/…'}
+              className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm outline-none focus:border-orange-500"
+            />
+            {shared.trim() ? (
+              <p role="status" className="text-xs text-orange-800">
+                {autoFilled.length > 0
+                  ? `자동으로 채웠어요: ${autoFilled.join(', ')}. 맞는지 꼭 확인해 주세요.`
+                  : '읽을 수 있는 정보가 없어요. 아래 칸에 직접 적어 주세요.'}
+                {autoFilled.includes('상품명') && !autoFilled.some((f) => f.startsWith('총수량'))
+                  ? ' 총수량은 상품명에서 찾지 못해 직접 적어 주세요.'
+                  : ''}
+              </p>
+            ) : null}
+          </div>
           <TextField
             label="상품 링크 (필수)"
             name="productUrl"
