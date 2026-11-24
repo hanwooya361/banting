@@ -32,10 +32,12 @@ public class User extends BaseTimeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 100)
+    /** 카카오 간편 가입처럼 이메일을 받지 못하면 null (T23, V9). */
+    @Column(length = 100)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 100)
+    /** 간편 가입 회원은 비밀번호가 없어 null (T23, V9). */
+    @Column(name = "password_hash", length = 100)
     private String passwordHash;
 
     @Column(nullable = false, length = 20)
@@ -83,6 +85,16 @@ public class User extends BaseTimeEntity {
         this.passwordHash = WITHDRAWN_PASSWORD_HASH;
         this.neighborhoodName = null;
         this.deletedAt = now;
+    }
+
+    /** 간편 가입 (T23): 비밀번호 없이. email은 공급자가 확인한 이메일만 (없으면 null). */
+    public static User signUpSocial(String email, String nickname, LocalDateTime privacyAgreedAt) {
+        return signUp(email, null, nickname, privacyAgreedAt);
+    }
+
+    /** 비밀번호로 로그인할 수 있는 회원인지 (간편 가입 회원은 false). */
+    public boolean hasPassword() {
+        return passwordHash != null;
     }
 
     public boolean isDeleted() {

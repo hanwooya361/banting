@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .permitAll()
                         // 공구 목록·상세는 로그인 없이 볼 수 있다 (화면 흐름 1: 둘러보고 참여할 때 로그인)
                         .requestMatchers(HttpMethod.GET, "/api/group-buys", "/api/group-buys/*").permitAll()
+                        // 간편 가입·로그인 (T23): 브라우저 이동(start·callback)과 가입 완료는 로그인 전이라 공개. 가입 완료는 대기표 쿠키로 검증
+                        .requestMatchers("/api/auth/oauth/**").permitAll()
                         // 업데이트 노트는 누구나 (T17)
                         .requestMatchers(HttpMethod.GET, "/api/notices").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

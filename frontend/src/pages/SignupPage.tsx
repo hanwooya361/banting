@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth/context'
+import { SocialLoginButtons } from '../components/SocialLoginButtons'
 import { TextField } from '../components/TextField'
 import { ApiError } from '../lib/api'
 
@@ -52,6 +53,8 @@ export function SignupPage() {
   return (
     <section className="mx-auto max-w-sm">
       <h1 className="mb-6 text-2xl font-bold">가입하기</h1>
+      {/* 간편 가입은 동의를 다음 화면(닉네임 정하기)에서 받는다 */}
+      <SocialLoginButtons next="/group-buys" />
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         <TextField
           label="이메일"

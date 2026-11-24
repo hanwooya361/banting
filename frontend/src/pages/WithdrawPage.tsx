@@ -5,7 +5,9 @@ import { api, ApiError } from '../lib/api'
 
 // 회원 탈퇴 (T22). 지워지는 것과 남는 것을 먼저 보여 주고, 비밀번호를 한 번 더 받는다
 export function WithdrawPage() {
-  const { logout } = useAuth()
+  const { me, logout } = useAuth()
+  // 간편 가입 회원(T23)은 비밀번호가 없어 "탈퇴"를 직접 입력해 확인한다
+  const usesPassword = me?.hasPassword ?? true
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -19,7 +21,10 @@ export function WithdrawPage() {
     setError(null)
     setBlocked(false)
     try {
-      await api<void>('/api/users/me/withdrawal', { method: 'POST', body: { password } })
+      await api<void>('/api/users/me/withdrawal', {
+        method: 'POST',
+        body: usesPassword ? { password } : { confirmText: password },
+      })
       // 먼저 이동하고 나서 로그아웃한다. 반대로 하면 이 화면의 RequireAuth가 먼저 로그인 화면으로 보내 안내가 사라진다.
       // /intro는 로그인 상태여도 목록으로 넘기지 않는 표지라 안내가 그대로 보인다
       navigate('/intro', { replace: true, state: { notice: '탈퇴했어요. 그동안 반띵을 써 주셔서 고마워요.' } })
@@ -56,10 +61,11 @@ export function WithdrawPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-          비밀번호 확인
+          {usesPassword ? '비밀번호 확인' : "확인을 위해 '탈퇴'라고 입력해 주세요"}
           <input
-            type="password"
-            autoComplete="current-password"
+            type={usesPassword ? 'password' : 'text'}
+            autoComplete={usesPassword ? 'current-password' : 'off'}
+            placeholder={usesPassword ? undefined : '탈퇴'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-lg border border-gray-300 px-3 py-2 font-normal outline-none focus:border-orange-500"

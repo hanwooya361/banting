@@ -24,6 +24,10 @@ export function PrivacyPage() {
           <tbody className="divide-y divide-gray-100">
             <Row item="이메일, 비밀번호(복원할 수 없게 암호화), 닉네임" why="가입·로그인, 공구에서 서로 알아보기" />
             <Row
+              item="간편 가입 시: 카카오 회원번호·구글 계정 식별자, 카카오·구글이 확인한 이메일(있을 때)"
+              why="같은 계정으로 다시 로그인하기. 카카오·구글 비밀번호는 받지 않아요"
+            />
+            <Row
               item="동네 좌표(약 100m 단위로 반올림)와 동네 이름"
               why="가까운 공구 찾기. 다른 사람에게는 동네 이름만 보여요"
             />
@@ -41,7 +45,11 @@ export function PrivacyPage() {
             <strong>토스페이먼츠</strong>: 결제 처리. 지금은 <strong>테스트 결제</strong>라 실제 돈이 오가지 않아요
           </li>
           <li>
-            <strong>카카오</strong>: 동네 설정 때 좌표를 보내 동네 이름을 받아 와요(저장은 반띵에만)
+            <strong>카카오</strong>: 동네 설정 때 좌표를 보내 동네 이름을 받아 와요(저장은 반띵에만). 카카오로 가입하면
+            카카오 로그인으로 본인을 확인해요
+          </li>
+          <li>
+            <strong>Google</strong>: Google로 가입하면 Google 로그인으로 본인을 확인해요
           </li>
           <li>
             <strong>Amazon Web Services</strong>: 서버와 데이터 보관. 서버가 <strong>호주(시드니)</strong>에 있어 위 정보가

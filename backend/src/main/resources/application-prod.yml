@@ -9,6 +9,9 @@ spring:
 banting:
   jwt:
     secret: ${JWT_SECRET}
+  oauth:
+    # 카카오·구글 콜백 주소와 로그인 후 이동 주소의 기준 (콘솔에 등록한 Redirect URI와 같아야 함, T23)
+    base-url: https://d3i3a9qd0hlqm6.cloudfront.net
   scheduler:
     enabled: true
   demo:

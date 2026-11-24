@@ -5,6 +5,8 @@ import com.banting.common.ErrorCode;
 import com.banting.common.geo.GeoPoint;
 import com.banting.user.UserController.MeResponse;
 import com.banting.user.UserRepository;
+import com.banting.user.oauth.SocialAccount;
+import com.banting.user.oauth.SocialAccountRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -33,6 +35,7 @@ public class LocationController {
 
     private final LocationService locationService;
     private final UserRepository userRepository;
+    private final SocialAccountRepository socialAccountRepository;
 
     @PutMapping("/api/users/me/location")
     public MeResponse updateMyLocation(@AuthenticationPrincipal Jwt jwt,
@@ -40,7 +43,8 @@ public class LocationController {
         Long userId = Long.valueOf(jwt.getSubject());
         locationService.updateMyLocation(userId, request.toPoint(), request.radiusM());
         return userRepository.findById(userId)
-                .map(MeResponse::from)
+                .map(user -> MeResponse.from(user, socialAccountRepository.findByUserId(userId).stream()
+                        .map(SocialAccount::getProvider).sorted().toList()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 

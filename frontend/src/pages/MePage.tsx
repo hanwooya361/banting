@@ -12,7 +12,10 @@ export function MePage() {
   }
 
   const rows: [string, string][] = [
-    ['이메일', me.email],
+    ['이메일', me.email ?? '없음 (간편 가입)'],
+    ...(me.socialProviders.length > 0
+      ? [['간편 로그인', me.socialProviders.map((p) => (p === 'KAKAO' ? '카카오' : 'Google')).join(', ')] as [string, string]]
+      : []),
     ['닉네임', me.nickname],
     ['동네', me.neighborhoodName ?? '아직 설정하지 않았어요'],
     ['검색 반경', `${me.searchRadiusM.toLocaleString()}m`],

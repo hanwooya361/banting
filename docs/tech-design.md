@@ -326,6 +326,15 @@ CONFIRMED ─ 개설자 "구매했어요" ─▶ PICKUP ─┬ 참여자 전원 
 - 피드백 버튼(T20): 모든 화면 오른쪽 아래 떠 있는 버튼 → 현재 화면을 떠나지 않고 유형·내용만 남김(제목은 내용 앞 40자). 남긴 화면 경로를 `inquiries.page_path`(V7)에 저장해 관리자 화면에 표시. 경로는 `/`로 시작하고 `//`가 아닌 것만(다른 사이트 주소 거부). 하단 고정 버튼(`data-sticky-cta`)이 있으면 CSS `:has`로 그 위로 올림
 - 관리자는 DB에서 role을 직접 ADMIN으로 (1명이라 코드 없음, infra.md). GitHub Issue는 서버가 만들지 않고 관리자가 주소를 붙여 넣음 (토큰 관리 회피)
 
+### 간편 가입·로그인 (T23 확정, 2026-11-24)
+- OAuth 2.0 인가 코드 방식을 서버가 직접 처리 (Spring Security oauth2Login은 세션 기반이라 지금의 JWT·refresh 쿠키 구조와 섞기 어려워 RestClient로 구현). 외부 호출은 `OAuthClient` 인터페이스 뒤 → 통합 테스트는 가짜 구현, `HttpOAuthClient`는 JDK HttpServer로 따로 검증
+- 흐름: `GET /api/auth/oauth/{kakao|google}/start?next=` → state·next 쿠키(HttpOnly·Secure·SameSite=Lax·10분) + 공급자 화면 → `GET .../callback?code&state` → state 비교 → 코드 교환·프로필(트랜잭션 밖) → ① 연결된 계정이면 로그인 ② 공급자가 **확인한** 이메일이 기존 회원이면 연결 후 로그인 ③ 처음이면 가입 대기표(10분, DB엔 SHA-256 해시, 한 번만) → `/auth/social/signup`에서 닉네임·동의 → `POST /api/auth/oauth/complete` → 회원 생성(비밀번호 없음)·연결·로그인
+- 대기표를 JWT로 만들지 않은 이유: access 토큰과 같은 키로 서명하면 대기표가 access 토큰으로 오인될 수 있음
+- 확인되지 않은 이메일은 연결에도, 계정 이메일로도 쓰지 않음(남의 이메일을 적은 계정으로 남의 계정에 들어가는 것 방지). 카카오는 이메일이 없을 수 있어 `users.email`·`password_hash` NULL 허용(V9), `user_social_accounts`(provider+provider_user_id UNIQUE)
+- 로그인 후 이동(`next`)은 우리 사이트 경로만(열린 리다이렉트 방지). 실패는 `/login?socialError=canceled|state|provider|disabled`
+- 간편 가입 회원: 비밀번호 로그인 불가, 탈퇴는 "탈퇴" 입력으로 확인, 탈퇴 시 소셜 연결 삭제(같은 계정으로 재가입 가능). `/api/users/me`에 `hasPassword`, `socialProviders`
+- 키: 공급자는 client-id와 client-secret이 모두 있어야 켜짐(없으면 버튼 숨김). 카카오 client-id = 동네 설정용 REST 키. 운영은 Parameter Store `/banting/prod/kakao-login-client-secret`, `/banting/prod/google-client-id`, `/banting/prod/google-client-secret` → deploy.sh가 선택 값으로 반영(없어도 배포 계속)
+
 ### 회원 탈퇴 (T22 확정, 2026-11-24)
 - `POST /api/users/me/withdrawal {password}` → 204. 비밀번호 재확인(틀리면 401 `INVALID_PASSWORD`)
 - 막는 경우(409 `WITHDRAWAL_BLOCKED`): 끝나지 않은 공구(DRAFT·OPEN·CONFIRMED·PICKUP)의 결제 대기·결제 완료 참여(개설자 몫 포함), 또는 환불 진행 중(REFUND_PENDING). 돈·수령이 걸린 상대가 연락할 사람이 사라지지 않게. 시드 제외

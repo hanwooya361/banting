@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { SocialLoginButtons } from '../components/SocialLoginButtons'
+import { SOCIAL_ERROR_MESSAGES } from '../lib/oauth'
 import { useAuth } from '../auth/context'
 import { TextField } from '../components/TextField'
 import { ApiError } from '../lib/api'
@@ -12,7 +14,11 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const [params] = useSearchParams()
+  const socialError = params.get('socialError')
+  const [error, setError] = useState<string | null>(
+    socialError ? (SOCIAL_ERROR_MESSAGES[socialError] ?? '간편 로그인에 실패했어요.') : null,
+  )
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
@@ -32,6 +38,7 @@ export function LoginPage() {
   return (
     <section className="mx-auto max-w-sm">
       <h1 className="mb-6 text-2xl font-bold">로그인</h1>
+      <SocialLoginButtons next={from} />
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <TextField
           label="이메일"

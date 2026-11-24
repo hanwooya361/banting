@@ -27,6 +27,8 @@ public enum ErrorCode {
     NICKNAME_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 닉네임이에요"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "회원 정보를 찾을 수 없어요"),
     INVALID_PASSWORD(HttpStatus.UNAUTHORIZED, "비밀번호가 맞지 않아요"),
+    WITHDRAWAL_CONFIRM_REQUIRED(HttpStatus.BAD_REQUEST, "확인을 위해 '탈퇴'라고 입력해 주세요"),
+    OAUTH_TICKET_INVALID(HttpStatus.BAD_REQUEST, "가입 시간이 지났어요. 간편 가입을 처음부터 다시 해 주세요"),
     WITHDRAWAL_BLOCKED(HttpStatus.CONFLICT, "진행 중인 공구나 환불이 있어서 아직 탈퇴할 수 없어요. 끝난 뒤에 다시 시도해 주세요"),
 
     // 동네·위치

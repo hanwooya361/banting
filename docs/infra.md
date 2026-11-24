@@ -107,6 +107,11 @@ docker compose ps; docker logs --tail 100 banting-app
 cat .current_tag; free -m; docker stats --no-stream
 ```
 
+간편 가입 키 (T23): Parameter Store SecureString으로 직접 넣는다. 없으면 그 버튼만 숨고 배포는 계속된다. 넣은 뒤 백엔드를 다시 배포해야(또는 서버 재시작 시 ec2-start) .env에 반영
+- `/banting/prod/kakao-login-client-secret` (카카오 client-id는 기존 `kakao-rest-api-key`를 그대로 씀)
+- `/banting/prod/google-client-id`, `/banting/prod/google-client-secret`
+- 콘솔에 등록할 Redirect URI: `https://d3i3a9qd0hlqm6.cloudfront.net/api/auth/oauth/{kakao|google}/callback` (로컬은 `http://localhost:5180/...`)
+
 관리자 지정 (T17, 2026-11-23 결정: 관리자는 1명이라 코드 없이 DB에서 직접). role은 로그인할 때 토큰에 들어가므로 바꾼 뒤 **다시 로그인**해야 적용된다:
 ```bash
 docker exec -it banting-mysql sh -c 'mysql -ubanting -p"$MYSQL_PASSWORD" banting'

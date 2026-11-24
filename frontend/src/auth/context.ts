@@ -2,11 +2,13 @@ import { createContext, useContext } from 'react'
 
 export type Me = {
   id: number
-  email: string
+  email: string | null // 카카오 간편 가입은 이메일이 없을 수 있음 (T23)
   nickname: string
   role: 'USER' | 'ADMIN'
   neighborhoodName: string | null
   searchRadiusM: number
+  hasPassword: boolean // false면 간편 가입 회원 (비밀번호 로그인·비밀번호 확인 없음)
+  socialProviders: ('KAKAO' | 'GOOGLE')[]
 }
 
 export type AuthState = {
