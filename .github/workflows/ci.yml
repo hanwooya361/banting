@@ -81,6 +81,10 @@ jobs:
       - name: 린트
         run: npm run lint
 
+      # 상품 붙여넣기 수량 읽기(T19)처럼 금액에 쓰이는 프론트 로직 테스트. 실패하면 배포되지 않는다
+      - name: 테스트
+        run: npm test
+
       # build = tsc 타입체크 + vite 번들링
       - name: 빌드
         run: npm run build
