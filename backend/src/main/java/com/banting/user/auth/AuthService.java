@@ -55,7 +55,8 @@ public class AuthService {
             throw new BusinessException(ErrorCode.NICKNAME_DUPLICATED);
         }
 
-        User user = User.signUp(email, passwordEncoder.encode(request.password()), nickname);
+        User user = User.signUp(email, passwordEncoder.encode(request.password()), nickname,
+                LocalDateTime.now(clock));   // 요청 검증(@AssertTrue)을 통과했으므로 지금 동의한 것
         try {
             // 위 확인과 저장 사이에 같은 이메일로 동시에 가입하면 UNIQUE 제약이 막는다 → 같은 409로 응답
             userRepository.saveAndFlush(user);

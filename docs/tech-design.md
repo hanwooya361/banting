@@ -58,6 +58,7 @@ notices (독립)
 | password_hash | VARCHAR(100) | BCrypt |
 | nickname | VARCHAR(20) UNIQUE | |
 | role | VARCHAR(10) | USER / ADMIN |
+| privacy_agreed_at | DATETIME NULL | 개인정보처리방침 동의 시각. 가입 요청에 `agreePrivacy=true`가 없으면 400. 이 기능 전 가입자는 NULL (V8, T21) |
 | location | POINT SRID 4326 NULL | 동네 기준 좌표, SPATIAL INDEX는 NOT NULL이 필요하므로 users에는 인덱스 없음 |
 | neighborhood_name | VARCHAR(50) NULL | 화면 표시용 동네 이름 |
 | search_radius_m | INT | 500 / 1000 / 3000, 기본 1000 |

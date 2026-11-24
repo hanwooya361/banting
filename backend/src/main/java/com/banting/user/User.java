@@ -52,13 +52,18 @@ public class User extends BaseTimeEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    public static User signUp(String email, String passwordHash, String nickname) {
+    /** 개인정보처리방침 동의 시각 (T21). 이 기능 전 가입자는 null. */
+    @Column(name = "privacy_agreed_at")
+    private LocalDateTime privacyAgreedAt;
+
+    public static User signUp(String email, String passwordHash, String nickname, LocalDateTime privacyAgreedAt) {
         User user = new User();
         user.email = email;
         user.passwordHash = passwordHash;
         user.nickname = nickname;
         user.role = Role.USER;
         user.searchRadiusM = DEFAULT_SEARCH_RADIUS_M;
+        user.privacyAgreedAt = privacyAgreedAt;
         return user;
     }
 

@@ -39,7 +39,7 @@ export function setup() {
   for (let start = 0; start < USERS; start += 20) {
     const ids = [...Array(20).keys()].map((i) => start + i);
     http.batch(ids.map((i) => ['POST', `${BASE}/api/auth/signup`,
-      JSON.stringify({ email: `${RUN}-${i}@load.test`, password: 'password123', nickname: `${RUN}${i}` }), json]));
+      JSON.stringify({ email: `${RUN}-${i}@load.test`, password: 'password123', nickname: `${RUN}${i}`, agreePrivacy: true }), json]));
     const res = http.batch(ids.map((i) => ['POST', `${BASE}/api/auth/login`,
       JSON.stringify({ email: `${RUN}-${i}@load.test`, password: 'password123' }), json]));
     res.forEach((r) => tokens.push(r.json('accessToken')));

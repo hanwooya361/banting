@@ -344,7 +344,7 @@ class GroupBuyIntegrationTest {
 
     private String signupAndLogin(String email, String nickname) throws Exception {
         mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"%s\",\"password\":\"password123\",\"nickname\":\"%s\"}".formatted(email, nickname)));
+                .content("{\"email\":\"%s\",\"password\":\"password123\",\"nickname\":\"%s\",\"agreePrivacy\":true}".formatted(email, nickname)));
         String body = mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"%s\",\"password\":\"password123\"}".formatted(email)))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
